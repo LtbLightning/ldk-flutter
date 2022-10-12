@@ -12,36 +12,25 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
 import 'dart:ffi' as ffi;
 
 abstract class Rust {
-  Future<bool> checkRpcInit({dynamic hint});
-
-  FlutterRustBridgeTaskConstMeta get kCheckRpcInitConstMeta;
-
-  Future<String> getNodeId({dynamic hint});
-
-  FlutterRustBridgeTaskConstMeta get kGetNodeIdConstMeta;
-
-  Future<String> ldkLoadOrInit(
+  Future<String> startLdk(
       {required String username,
       required String password,
       required String host,
-      required String network,
+      required String nodeNetwork,
       required String path,
       required int port,
       dynamic hint});
 
-  FlutterRustBridgeTaskConstMeta get kLdkLoadOrInitConstMeta;
+  FlutterRustBridgeTaskConstMeta get kStartLdkConstMeta;
 
-  Future<int> loadClient(
-      {required String username,
-      required String password,
-      required String host,
-      required int isolatePort,
-      required String network,
-      required String path,
-      required int port,
+  Future<String> openChannel(
+      {required String pubKeyStr,
+      required String peerAddStr,
+      required int amount,
+      required bool isPublic,
       dynamic hint});
 
-  FlutterRustBridgeTaskConstMeta get kLoadClientConstMeta;
+  FlutterRustBridgeTaskConstMeta get kOpenChannelConstMeta;
 }
 
 class RustImpl extends FlutterRustBridgeBase<RustWire> implements Rust {
@@ -49,102 +38,65 @@ class RustImpl extends FlutterRustBridgeBase<RustWire> implements Rust {
 
   RustImpl.raw(RustWire inner) : super(inner);
 
-  Future<bool> checkRpcInit({dynamic hint}) =>
-      executeNormal(FlutterRustBridgeTask(
-        callFfi: (port_) => inner.wire_check_rpc_init(port_),
-        parseSuccessData: _wire2api_bool,
-        constMeta: kCheckRpcInitConstMeta,
-        argValues: [],
-        hint: hint,
-      ));
-
-  FlutterRustBridgeTaskConstMeta get kCheckRpcInitConstMeta =>
-      const FlutterRustBridgeTaskConstMeta(
-        debugName: "check_rpc_init",
-        argNames: [],
-      );
-
-  Future<String> getNodeId({dynamic hint}) =>
-      executeNormal(FlutterRustBridgeTask(
-        callFfi: (port_) => inner.wire_get_node_id(port_),
-        parseSuccessData: _wire2api_String,
-        constMeta: kGetNodeIdConstMeta,
-        argValues: [],
-        hint: hint,
-      ));
-
-  FlutterRustBridgeTaskConstMeta get kGetNodeIdConstMeta =>
-      const FlutterRustBridgeTaskConstMeta(
-        debugName: "get_node_id",
-        argNames: [],
-      );
-
-  Future<String> ldkLoadOrInit(
+  Future<String> startLdk(
           {required String username,
           required String password,
           required String host,
-          required String network,
+          required String nodeNetwork,
           required String path,
           required int port,
           dynamic hint}) =>
       executeNormal(FlutterRustBridgeTask(
-        callFfi: (port_) => inner.wire_ldk_load_or_init(
+        callFfi: (port_) => inner.wire_start_ldk(
             port_,
             _api2wire_String(username),
             _api2wire_String(password),
             _api2wire_String(host),
-            _api2wire_String(network),
+            _api2wire_String(nodeNetwork),
             _api2wire_String(path),
             _api2wire_u16(port)),
         parseSuccessData: _wire2api_String,
-        constMeta: kLdkLoadOrInitConstMeta,
-        argValues: [username, password, host, network, path, port],
+        constMeta: kStartLdkConstMeta,
+        argValues: [username, password, host, nodeNetwork, path, port],
         hint: hint,
       ));
 
-  FlutterRustBridgeTaskConstMeta get kLdkLoadOrInitConstMeta =>
+  FlutterRustBridgeTaskConstMeta get kStartLdkConstMeta =>
       const FlutterRustBridgeTaskConstMeta(
-        debugName: "ldk_load_or_init",
-        argNames: ["username", "password", "host", "network", "path", "port"],
-      );
-
-  Future<int> loadClient(
-          {required String username,
-          required String password,
-          required String host,
-          required int isolatePort,
-          required String network,
-          required String path,
-          required int port,
-          dynamic hint}) =>
-      executeNormal(FlutterRustBridgeTask(
-        callFfi: (port_) => inner.wire_load_client(
-            port_,
-            _api2wire_String(username),
-            _api2wire_String(password),
-            _api2wire_String(host),
-            _api2wire_u16(isolatePort),
-            _api2wire_String(network),
-            _api2wire_String(path),
-            _api2wire_u16(port)),
-        parseSuccessData: _wire2api_u32,
-        constMeta: kLoadClientConstMeta,
-        argValues: [username, password, host, isolatePort, network, path, port],
-        hint: hint,
-      ));
-
-  FlutterRustBridgeTaskConstMeta get kLoadClientConstMeta =>
-      const FlutterRustBridgeTaskConstMeta(
-        debugName: "load_client",
+        debugName: "start_ldk",
         argNames: [
           "username",
           "password",
           "host",
-          "isolatePort",
-          "network",
+          "nodeNetwork",
           "path",
           "port"
         ],
+      );
+
+  Future<String> openChannel(
+          {required String pubKeyStr,
+          required String peerAddStr,
+          required int amount,
+          required bool isPublic,
+          dynamic hint}) =>
+      executeNormal(FlutterRustBridgeTask(
+        callFfi: (port_) => inner.wire_open_channel(
+            port_,
+            _api2wire_String(pubKeyStr),
+            _api2wire_String(peerAddStr),
+            _api2wire_u64(amount),
+            isPublic),
+        parseSuccessData: _wire2api_String,
+        constMeta: kOpenChannelConstMeta,
+        argValues: [pubKeyStr, peerAddStr, amount, isPublic],
+        hint: hint,
+      ));
+
+  FlutterRustBridgeTaskConstMeta get kOpenChannelConstMeta =>
+      const FlutterRustBridgeTaskConstMeta(
+        debugName: "open_channel",
+        argNames: ["pubKeyStr", "peerAddStr", "amount", "isPublic"],
       );
 
   // Section: api2wire
@@ -152,7 +104,15 @@ class RustImpl extends FlutterRustBridgeBase<RustWire> implements Rust {
     return _api2wire_uint_8_list(utf8.encoder.convert(raw));
   }
 
+  bool _api2wire_bool(bool raw) {
+    return raw;
+  }
+
   int _api2wire_u16(int raw) {
+    return raw;
+  }
+
+  int _api2wire_u64(int raw) {
     return raw;
   }
 
@@ -173,14 +133,6 @@ class RustImpl extends FlutterRustBridgeBase<RustWire> implements Rust {
 // Section: wire2api
 String _wire2api_String(dynamic raw) {
   return raw as String;
-}
-
-bool _wire2api_bool(dynamic raw) {
-  return raw as bool;
-}
-
-int _wire2api_u32(dynamic raw) {
-  return raw as int;
 }
 
 int _wire2api_u8(dynamic raw) {
@@ -212,55 +164,27 @@ class RustWire implements FlutterRustBridgeWireBase {
           lookup)
       : _lookup = lookup;
 
-  void wire_check_rpc_init(
-    int port_,
-  ) {
-    return _wire_check_rpc_init(
-      port_,
-    );
-  }
-
-  late final _wire_check_rpc_initPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
-          'wire_check_rpc_init');
-  late final _wire_check_rpc_init =
-      _wire_check_rpc_initPtr.asFunction<void Function(int)>();
-
-  void wire_get_node_id(
-    int port_,
-  ) {
-    return _wire_get_node_id(
-      port_,
-    );
-  }
-
-  late final _wire_get_node_idPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
-          'wire_get_node_id');
-  late final _wire_get_node_id =
-      _wire_get_node_idPtr.asFunction<void Function(int)>();
-
-  void wire_ldk_load_or_init(
+  void wire_start_ldk(
     int port_,
     ffi.Pointer<wire_uint_8_list> username,
     ffi.Pointer<wire_uint_8_list> password,
     ffi.Pointer<wire_uint_8_list> host,
-    ffi.Pointer<wire_uint_8_list> network,
+    ffi.Pointer<wire_uint_8_list> node_network,
     ffi.Pointer<wire_uint_8_list> path,
     int port,
   ) {
-    return _wire_ldk_load_or_init(
+    return _wire_start_ldk(
       port_,
       username,
       password,
       host,
-      network,
+      node_network,
       path,
       port,
     );
   }
 
-  late final _wire_ldk_load_or_initPtr = _lookup<
+  late final _wire_start_ldkPtr = _lookup<
       ffi.NativeFunction<
           ffi.Void Function(
               ffi.Int64,
@@ -269,8 +193,8 @@ class RustWire implements FlutterRustBridgeWireBase {
               ffi.Pointer<wire_uint_8_list>,
               ffi.Pointer<wire_uint_8_list>,
               ffi.Pointer<wire_uint_8_list>,
-              ffi.Uint16)>>('wire_ldk_load_or_init');
-  late final _wire_ldk_load_or_init = _wire_ldk_load_or_initPtr.asFunction<
+              ffi.Uint16)>>('wire_start_ldk');
+  late final _wire_start_ldk = _wire_start_ldkPtr.asFunction<
       void Function(
           int,
           ffi.Pointer<wire_uint_8_list>,
@@ -280,49 +204,33 @@ class RustWire implements FlutterRustBridgeWireBase {
           ffi.Pointer<wire_uint_8_list>,
           int)>();
 
-  void wire_load_client(
+  void wire_open_channel(
     int port_,
-    ffi.Pointer<wire_uint_8_list> username,
-    ffi.Pointer<wire_uint_8_list> password,
-    ffi.Pointer<wire_uint_8_list> host,
-    int isolate_port,
-    ffi.Pointer<wire_uint_8_list> network,
-    ffi.Pointer<wire_uint_8_list> path,
-    int port,
+    ffi.Pointer<wire_uint_8_list> pub_key_str,
+    ffi.Pointer<wire_uint_8_list> peer_add_str,
+    int amount,
+    bool is_public,
   ) {
-    return _wire_load_client(
+    return _wire_open_channel(
       port_,
-      username,
-      password,
-      host,
-      isolate_port,
-      network,
-      path,
-      port,
+      pub_key_str,
+      peer_add_str,
+      amount,
+      is_public,
     );
   }
 
-  late final _wire_load_clientPtr = _lookup<
+  late final _wire_open_channelPtr = _lookup<
       ffi.NativeFunction<
           ffi.Void Function(
               ffi.Int64,
               ffi.Pointer<wire_uint_8_list>,
               ffi.Pointer<wire_uint_8_list>,
-              ffi.Pointer<wire_uint_8_list>,
-              ffi.Uint16,
-              ffi.Pointer<wire_uint_8_list>,
-              ffi.Pointer<wire_uint_8_list>,
-              ffi.Uint16)>>('wire_load_client');
-  late final _wire_load_client = _wire_load_clientPtr.asFunction<
-      void Function(
-          int,
-          ffi.Pointer<wire_uint_8_list>,
-          ffi.Pointer<wire_uint_8_list>,
-          ffi.Pointer<wire_uint_8_list>,
-          int,
-          ffi.Pointer<wire_uint_8_list>,
-          ffi.Pointer<wire_uint_8_list>,
-          int)>();
+              ffi.Uint64,
+              ffi.Bool)>>('wire_open_channel');
+  late final _wire_open_channel = _wire_open_channelPtr.asFunction<
+      void Function(int, ffi.Pointer<wire_uint_8_list>,
+          ffi.Pointer<wire_uint_8_list>, int, bool)>();
 
   ffi.Pointer<wire_uint_8_list> new_uint_8_list_0(
     int len,

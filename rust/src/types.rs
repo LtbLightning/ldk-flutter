@@ -1,5 +1,3 @@
-use crate::bitcoind_client::BitcoindClient;
-use crate::file_io::FilesystemLogger;
 use lightning::chain;
 use lightning::chain::chainmonitor;
 use lightning::chain::keysinterface::{InMemorySigner, KeysManager};
@@ -17,7 +15,8 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::{Arc, Mutex};
 use bitcoin::Network;
-
+use crate::bitcoind_client::BitcoindClient;
+use crate::file_io::FilesystemLogger;
 pub(crate) enum HTLCStatus {
     Pending,
     Succeeded,
@@ -40,17 +39,6 @@ pub(crate) struct PaymentInfo {
     pub(crate) secret: Option<PaymentSecret>,
     pub(crate) status: HTLCStatus,
     pub(crate) amt_msat: MillisatAmount,
-}
-#[derive(Clone)]
-pub (crate) struct LdkInfo{
-    pub(crate) channel_manager: Option<Arc<ChannelManager>>,
-    pub(crate)  bitcoind_client: Option<Arc<BitcoindClient>>,
-    pub(crate) network_graph: Option<Arc<NetworkGraph>>,
-    pub(crate)  keys_manager: Option<Arc<KeysManager>>,
-    pub(crate) inbound_payments: Option<PaymentInfoStorage>,
-    pub(crate) outbound_payments: Option<PaymentInfoStorage>,
-    pub(crate) network: Option<Network>,
-    pub(crate) path: Option<String>
 }
 
 pub(crate) type PaymentInfoStorage = Arc<Mutex<HashMap<PaymentHash, PaymentInfo>>>;
@@ -84,6 +72,19 @@ pub(crate) type InvoicePayer<E> = payment::InvoicePayer<
     E,
 >;
 
-type Router = DefaultRouter<Arc<NetworkGraph>, Arc<FilesystemLogger>>;
+pub type Router = DefaultRouter<Arc<NetworkGraph>, Arc<FilesystemLogger>>;
 
 pub type NetworkGraph = NetGraph<Arc<FilesystemLogger>>;
+
+#[derive(Clone)]
+pub(crate) struct LdkInfo {
+    pub channel_manager: Option<Arc<ChannelManager>>,
+    pub bitcoind_client: Option<Arc<BitcoindClient>>,
+    pub network_graph: Option<Arc<NetworkGraph>>,
+    pub keys_manager: Option<Arc<KeysManager>>,
+    pub peer_manager: Option<Arc<PeerManager>>,
+    pub inbound_payments: Option<PaymentInfoStorage>,
+    pub outbound_payments: Option<PaymentInfoStorage>,
+    pub network: Option<Network>,
+    pub path: Option<String>,
+}

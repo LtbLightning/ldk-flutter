@@ -1,4 +1,5 @@
-use crate::types;
+use crate::ldk_functions;
+use crate::types::NetworkGraph;
 use bitcoin::secp256k1::PublicKey;
 use bitcoin::BlockHash;
 use chrono::Utc;
@@ -8,11 +9,10 @@ use lightning::util::ser::{ReadableArgs, Writer};
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufRead, BufReader};
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
-use types::NetworkGraph;
 
 pub(crate) struct FilesystemLogger {
     data_dir: String,
@@ -67,14 +67,14 @@ pub(crate) fn read_channel_peer_data(
     }
     let file = File::open(path)?;
     let reader = BufReader::new(file);
-    // for line in reader.lines() {
-    //     match cli::parse_peer_info(line.unwrap()) {
-    //         Ok((pubkey, socket_addr)) => {
-    //             peer_data.insert(pubkey, socket_addr);
-    //         }
-    //         Err(e) => return Err(e),
-    //     }
-    // }
+    for line in reader.lines() {
+        match ldk_functions::parse_peer_info(line.unwrap()) {
+            Ok((pubkey, socket_addr)) => {
+                peer_data.insert(pubkey, socket_addr);
+            }
+            Err(e) => return Err(e),
+        }
+    }
     Ok(peer_data)
 }
 

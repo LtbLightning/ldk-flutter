@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ldk_flutter/ldk_flutter.dart';
 
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
@@ -21,6 +22,15 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     getLdk();
   }
+
+  openChannel() async{
+    await _rustIsolatePlugin.openChannel(
+        pubKey: "03aa32db8e7b1f4012b3a994d55abecb57ddeb634e7d4fde1fd32d2447ca86d1cb",
+        port: 9838,
+        host: "127.0.0.1",
+        amountInSats: 100000,
+        isPublic: false);
+}
   getLdk() async{
    await _rustIsolatePlugin.ldkInit(
        host: "127.0.0.1",
@@ -48,7 +58,10 @@ class _MyAppState extends State<MyApp> {
             children: [
               ElevatedButton(onPressed: (){
                 getDocDir();
-              }, child: Text("Get Doc Dir"))
+              }, child: Text("Get Doc Dir")),
+              ElevatedButton(onPressed: (){
+                openChannel();
+              }, child: Text("Open Channel"))
             ],
           ),
         ),

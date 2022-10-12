@@ -11,13 +11,20 @@ class LdkFlutter {
     final Directory _appDocDir = await getApplicationDocumentsDirectory();
     return _appDocDir.path;
   }
+
+  Future<String> openChannel({required String pubKey, required int port, required String host, required int amountInSats, required bool isPublic})async{
+    final peerAddStr = "$host:$port";
+    final res = await loaderApi.openChannel(peerAddStr: peerAddStr,  isPublic: isPublic, amount: amountInSats, pubKeyStr: pubKey);
+    print(res);
+    return res;
+  }
+
   ldkInit({required String host,
     required int port,
     required String username,
     required String password,
     required Network network,
     String? path}) async {
-
     final ReceivePort receivePort= ReceivePort();
     final args = LdkNode(
         host: host,
@@ -35,18 +42,19 @@ class LdkFlutter {
 
   _ldkInit( LdkNode node) async {
     print("Creating LDK Node......");
-    final res = await  loaderApi.ldkLoadOrInit(
+    final res = await  loaderApi.startLdk(
         host: node.host,
         port: node.port,
         username: node.username,
         password: node.password,
-        network:node.network.name.toString(),
+        nodeNetwork:node.network.name.toString(),
         path: node.path
     );
     node.isolatePort.send(res);
   }
+
+
   Future<String> getNodeId() async {
-    var res = await loaderApi.getNodeId();
-    return res;
+    return "";
   }
 }
