@@ -48,6 +48,7 @@ class LdkFlutter {
     final res = await loaderApi.getNodeInfo();
     return res;
   }
+
   Future<String> openChannel({required String peerPubKey, required int port, required String host, required int amountInSats, required bool isPublic})async{
     final channels = await getAllChannels();
     for(var e  in channels){

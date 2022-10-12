@@ -1,7 +1,6 @@
 .DEFAULT_GOAL := help
 PROJECTNAME=$(shell basename "$(PWD)")
 SOURCES=$(sort $(wildcard ./src/*.rs ./src/**/*.rs))
-
 OS_NAME=$(shell uname | tr '[:upper:]' '[:lower:]')
 BINPATH = $(ANDROID_NDK_HOME)/25.0.8775105/toolchains/llvm/prebuilt/$(OS_NAME)-x86_64/bin
 ANDROID_AARCH64_LINKER=$(BINPATH)/aarch64-linux-android29-clang
@@ -12,7 +11,6 @@ ANDROID_I686_LINKER=$(BINPATH)/i686-linux-android29-clang
 ANDROID_I686_AR=$(BINPATH)/llvm-ar
 ANDROID_X86_64_LINKER=$(BINPATH)/x86_64-linux-android29-clang
 ANDROID_X86_64_AR=$(BINPATH)/llvm-ar
-
 SHELL := /bin/bash
 
 # ##############################################################################
