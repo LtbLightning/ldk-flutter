@@ -7,16 +7,25 @@ use bitcoin::hash_types::{BlockHash, Txid};
 use bitcoin::util::address::Address;
 use lightning::chain::chaininterface::{BroadcasterInterface, ConfirmationTarget, FeeEstimator};
 use lightning_block_sync::http::HttpEndpoint;
-use lightning_block_sync::rpc::RpcClient;
+pub use lightning_block_sync::rpc::RpcClient;
 use lightning_block_sync::{AsyncBlockSourceResult, BlockHeaderData, BlockSource};
 use serde_json;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-pub struct BitcoindClient {
+#[frb(mirror(RpcClient))]
+pub struct _RpcClient {
+    basic_auth: String,
+    endpoint: HttpEndpoint,
+    client: Mutex<HttpClient>,
+    id: std::sync::atomic::AtomicUsize,
+}
+
+
+struct BitcoindClient {
     bitcoind_rpc_client: Arc<RpcClient>,
     host: String,
     port: u16,
@@ -40,7 +49,7 @@ impl BlockSource for &BitcoindClient {
         Box::pin(async move { self.bitcoind_rpc_client.get_header(header_hash, height_hint).await })
     }
 
-    fn get_block<'a>(&'a self, header_hash: &'a BlockHash) -> AsyncBlockSourceResult<'a, Block> {
+    fn get_block<'a>(&'a self, header_hash: &'a BlockHash) ->  AsyncBlockSourceResult<'a, Block> {
         Box::pin(async move { self.bitcoind_rpc_client.get_block(header_hash).await })
     }
 
@@ -53,24 +62,7 @@ impl BlockSource for &BitcoindClient {
 const MIN_FEERATE: u32 = 253;
 
 impl BitcoindClient {
-    pub  fn default() -> BitcoindClient {
-        let http_endpoint = HttpEndpoint::for_host("host".to_string()).with_port(3000);
-        let rpc_credentials =
-            base64::encode(format!("{}:{}", "rpc_user" , "rpc_password"));
-        let bitcoind_rpc_client = RpcClient::new(&rpc_credentials, http_endpoint).unwrap();
-        let mut fees: HashMap<Target, AtomicU32> = HashMap::new();
-        fees.insert(Target::Normal, AtomicU32::new(2000));
-        let client = BitcoindClient {
-            bitcoind_rpc_client: Arc::new(bitcoind_rpc_client),
-            host:"host".to_string(),
-            port:3000,
-            rpc_user:"rpc_user".to_string(),
-            rpc_password:"rpc_password".to_string(),
-            fees: Arc::new(fees),
-            handle: tokio::runtime::Handle::current(),
-        };
-        client
-    }
+
     pub async fn new(
         host: String, port: u16, rpc_user: String, rpc_password: String,
         handle: tokio::runtime::Handle,
@@ -99,7 +91,7 @@ impl BitcoindClient {
             fees: Arc::new(fees),
             handle: handle.clone(),
         };
-        BitcoindClient::poll_for_fee_estimates(
+       BitcoindClient::poll_for_fee_estimates(
             client.fees.clone(),
             client.bitcoind_rpc_client.clone(),
             handle,

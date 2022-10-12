@@ -1,2 +1,5 @@
-library ldk_flutter;
-export './src/ldk_flutter_root.dart';
+
+export './src/root.dart';
+export './src/generated/bindings.dart';
+export './src/utils/loader.dart';
+export './src/structs/fee_estimator.dart';

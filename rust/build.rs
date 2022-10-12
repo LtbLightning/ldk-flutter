@@ -4,7 +4,7 @@ use lib_flutter_rust_bridge_codegen::{
 use std::env;
 
 /// Path of input Rust code
-const RUST_INPUT: &str = "src/api.rs";
+const RUST_INPUT: &str = "src/bitcoin_client.rs";
 /// Path of output generated Dart code
 const DART_OUTPUT: &str = "../lib/src/generated/bindings.dart";
 
