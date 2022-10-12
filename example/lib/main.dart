@@ -15,7 +15,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  final _rustIsolatePlugin = LdkFlutter();
+  final _ldkRust = LdkFlutter();
 
   @override
   void initState() {
@@ -24,15 +24,21 @@ class _MyAppState extends State<MyApp> {
   }
 
   openChannel() async{
-    await _rustIsolatePlugin.openChannel(
-        pubKey: "03aa32db8e7b1f4012b3a994d55abecb57ddeb634e7d4fde1fd32d2447ca86d1cb",
+    await _ldkRust.openChannel(
+        peerPubKey: "03aa32db8e7b1f4012b3a994d55abecb57ddeb634e7d4fde1fd32d2447ca86d1cb",
         port: 9838,
         host: "127.0.0.1",
         amountInSats: 100000,
         isPublic: false);
 }
+listChannels() async{
+ final res =  await _ldkRust.getAllChannels();
+ for (var e in res){
+  print( e.peerPubkey);
+ }
+}
   getLdk() async{
-   await _rustIsolatePlugin.ldkInit(
+   await _ldkRust.ldkInit(
        host: "127.0.0.1",
         port: 18443,
         username: "polaruser",
@@ -41,10 +47,15 @@ class _MyAppState extends State<MyApp> {
         path:"~/Library/Developer/CoreSimulator/Devices/8AFA2EBF-F65B-446A-B731-FF811EEFD54D/data/Containers/Data/Application/9A7D9E46-E4FA-4A2D-A68F-998612BC5A7C/Documents");
   }
   getDocDir() async{
-    final res = await _rustIsolatePlugin.getAppDocDirPath();
+    final res = await _ldkRust.getAppDocDirPath();
     print(res);
   }
-
+ getNodeInfo() async{
+    final res = await _ldkRust.getNodeInfo();
+    print("Local Balance ${res.localBalanceMsat}");
+    print("Node PubKey ${res.nodePubKey}");
+    print("No:of channels ${res.numUsableChannels}");
+ }
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -54,14 +65,20 @@ class _MyAppState extends State<MyApp> {
         ),
         body: Center(
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               ElevatedButton(onPressed: (){
                 getDocDir();
               }, child: Text("Get Doc Dir")),
               ElevatedButton(onPressed: (){
                 openChannel();
-              }, child: Text("Open Channel"))
+              }, child: Text("Open Channel")),
+              ElevatedButton(onPressed: (){
+                listChannels();
+              }, child: Text("List Channels")),
+              ElevatedButton(onPressed: (){
+                getNodeInfo();
+              }, child: Text("Get Node Info"))
             ],
           ),
         ),

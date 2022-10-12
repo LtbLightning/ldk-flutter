@@ -2,7 +2,7 @@ import 'dart:isolate';
 
 import 'package:ldk_flutter/ldk_flutter.dart';
 
-class LdkNode {
+class LdkNodeArgs {
   final String host;
   final int port;
   final String username;
@@ -11,7 +11,7 @@ class LdkNode {
   final String path;
   final  SendPort isolatePort;
 
-  LdkNode(
+  LdkNodeArgs(
       {
         required this.host,
         required this.port,

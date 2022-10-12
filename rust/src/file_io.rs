@@ -1,4 +1,4 @@
-use crate::ldk_functions;
+use crate::ffi;
 use crate::types::NetworkGraph;
 use bitcoin::secp256k1::PublicKey;
 use bitcoin::BlockHash;
@@ -68,7 +68,7 @@ pub(crate) fn read_channel_peer_data(
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     for line in reader.lines() {
-        match ldk_functions::parse_peer_info(line.unwrap()) {
+        match ffi::parse_peer_info(line.unwrap()) {
             Ok((pubkey, socket_addr)) => {
                 peer_data.insert(pubkey, socket_addr);
             }

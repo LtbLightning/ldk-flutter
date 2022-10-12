@@ -62,7 +62,7 @@ pub(crate) type PeerManager = SimpleArcPeerManager<
 >;
 
 pub(crate) type ChannelManager =
-    SimpleArcChannelManager<ChainMonitor, BitcoindClient, BitcoindClient, FilesystemLogger>;
+SimpleArcChannelManager<ChainMonitor, BitcoindClient, BitcoindClient, FilesystemLogger>;
 
 pub(crate) type InvoicePayer<E> = payment::InvoicePayer<
     Arc<ChannelManager>,
@@ -88,3 +88,26 @@ pub(crate) struct LdkInfo {
     pub network: Option<Network>,
     pub path: Option<String>,
 }
+
+pub struct LdkNodeInfo {
+    pub node_pub_key:String,
+    pub num_channels: usize,
+    pub num_usable_channels: usize,
+    pub local_balance_msat: u64,
+    pub num_peers: usize,
+}
+pub struct  ChannelInfo{
+    pub  channel_id: String,
+    pub  funding_txid: Option<String>,
+    pub  peer_pubkey: String,
+    pub peer_alias:Option<String>,
+    pub  short_channel_id: Option<String>,
+    pub  is_channel_ready: bool,
+    pub  channel_value_satoshis: u64,
+    pub  local_balance_msat: u64,
+    pub  available_balance_for_send_msat: u64,
+    pub  available_balance_for_recv_msat: u64,
+    pub  channel_can_send_payments: bool,
+    pub  public: bool,
+}
+

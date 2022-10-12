@@ -5,5 +5,5 @@ mod hex_utils;
 mod types;
 mod serialize;
 mod bitcoind_client;
+mod r_api;
 mod ffi;
-mod ldk_functions;

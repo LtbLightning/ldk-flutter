@@ -23,6 +23,10 @@ abstract class Rust {
 
   FlutterRustBridgeTaskConstMeta get kStartLdkConstMeta;
 
+  Future<LdkNodeInfo> getNodeInfo({dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kGetNodeInfoConstMeta;
+
   Future<String> openChannel(
       {required String pubKeyStr,
       required String peerAddStr,
@@ -31,6 +35,74 @@ abstract class Rust {
       dynamic hint});
 
   FlutterRustBridgeTaskConstMeta get kOpenChannelConstMeta;
+
+  Future<List<ChannelInfo>> listChannel({dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kListChannelConstMeta;
+
+  Future<List<String>> listPeers({dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kListPeersConstMeta;
+
+  Future<void> closeChannel(
+      {required String channelIdStr,
+      required String peerPubkeyStr,
+      dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kCloseChannelConstMeta;
+
+  Future<void> forceCloseChannel(
+      {required String channelIdStr,
+      required String peerPubkeyStr,
+      dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kForceCloseChannelConstMeta;
+}
+
+class ChannelInfo {
+  final String channelId;
+  final String? fundingTxid;
+  final String peerPubkey;
+  final String? peerAlias;
+  final String? shortChannelId;
+  final bool isChannelReady;
+  final int channelValueSatoshis;
+  final int localBalanceMsat;
+  final int availableBalanceForSendMsat;
+  final int availableBalanceForRecvMsat;
+  final bool channelCanSendPayments;
+  final bool public;
+
+  ChannelInfo({
+    required this.channelId,
+    this.fundingTxid,
+    required this.peerPubkey,
+    this.peerAlias,
+    this.shortChannelId,
+    required this.isChannelReady,
+    required this.channelValueSatoshis,
+    required this.localBalanceMsat,
+    required this.availableBalanceForSendMsat,
+    required this.availableBalanceForRecvMsat,
+    required this.channelCanSendPayments,
+    required this.public,
+  });
+}
+
+class LdkNodeInfo {
+  final String nodePubKey;
+  final int numChannels;
+  final int numUsableChannels;
+  final int localBalanceMsat;
+  final int numPeers;
+
+  LdkNodeInfo({
+    required this.nodePubKey,
+    required this.numChannels,
+    required this.numUsableChannels,
+    required this.localBalanceMsat,
+    required this.numPeers,
+  });
 }
 
 class RustImpl extends FlutterRustBridgeBase<RustWire> implements Rust {
@@ -74,6 +146,21 @@ class RustImpl extends FlutterRustBridgeBase<RustWire> implements Rust {
         ],
       );
 
+  Future<LdkNodeInfo> getNodeInfo({dynamic hint}) =>
+      executeNormal(FlutterRustBridgeTask(
+        callFfi: (port_) => inner.wire_get_node_info(port_),
+        parseSuccessData: _wire2api_ldk_node_info,
+        constMeta: kGetNodeInfoConstMeta,
+        argValues: [],
+        hint: hint,
+      ));
+
+  FlutterRustBridgeTaskConstMeta get kGetNodeInfoConstMeta =>
+      const FlutterRustBridgeTaskConstMeta(
+        debugName: "get_node_info",
+        argNames: [],
+      );
+
   Future<String> openChannel(
           {required String pubKeyStr,
           required String peerAddStr,
@@ -97,6 +184,74 @@ class RustImpl extends FlutterRustBridgeBase<RustWire> implements Rust {
       const FlutterRustBridgeTaskConstMeta(
         debugName: "open_channel",
         argNames: ["pubKeyStr", "peerAddStr", "amount", "isPublic"],
+      );
+
+  Future<List<ChannelInfo>> listChannel({dynamic hint}) =>
+      executeNormal(FlutterRustBridgeTask(
+        callFfi: (port_) => inner.wire_list_channel(port_),
+        parseSuccessData: _wire2api_list_channel_info,
+        constMeta: kListChannelConstMeta,
+        argValues: [],
+        hint: hint,
+      ));
+
+  FlutterRustBridgeTaskConstMeta get kListChannelConstMeta =>
+      const FlutterRustBridgeTaskConstMeta(
+        debugName: "list_channel",
+        argNames: [],
+      );
+
+  Future<List<String>> listPeers({dynamic hint}) =>
+      executeNormal(FlutterRustBridgeTask(
+        callFfi: (port_) => inner.wire_list_peers(port_),
+        parseSuccessData: _wire2api_StringList,
+        constMeta: kListPeersConstMeta,
+        argValues: [],
+        hint: hint,
+      ));
+
+  FlutterRustBridgeTaskConstMeta get kListPeersConstMeta =>
+      const FlutterRustBridgeTaskConstMeta(
+        debugName: "list_peers",
+        argNames: [],
+      );
+
+  Future<void> closeChannel(
+          {required String channelIdStr,
+          required String peerPubkeyStr,
+          dynamic hint}) =>
+      executeNormal(FlutterRustBridgeTask(
+        callFfi: (port_) => inner.wire_close_channel(port_,
+            _api2wire_String(channelIdStr), _api2wire_String(peerPubkeyStr)),
+        parseSuccessData: _wire2api_unit,
+        constMeta: kCloseChannelConstMeta,
+        argValues: [channelIdStr, peerPubkeyStr],
+        hint: hint,
+      ));
+
+  FlutterRustBridgeTaskConstMeta get kCloseChannelConstMeta =>
+      const FlutterRustBridgeTaskConstMeta(
+        debugName: "close_channel",
+        argNames: ["channelIdStr", "peerPubkeyStr"],
+      );
+
+  Future<void> forceCloseChannel(
+          {required String channelIdStr,
+          required String peerPubkeyStr,
+          dynamic hint}) =>
+      executeNormal(FlutterRustBridgeTask(
+        callFfi: (port_) => inner.wire_force_close_channel(port_,
+            _api2wire_String(channelIdStr), _api2wire_String(peerPubkeyStr)),
+        parseSuccessData: _wire2api_unit,
+        constMeta: kForceCloseChannelConstMeta,
+        argValues: [channelIdStr, peerPubkeyStr],
+        hint: hint,
+      ));
+
+  FlutterRustBridgeTaskConstMeta get kForceCloseChannelConstMeta =>
+      const FlutterRustBridgeTaskConstMeta(
+        debugName: "force_close_channel",
+        argNames: ["channelIdStr", "peerPubkeyStr"],
       );
 
   // Section: api2wire
@@ -135,12 +290,73 @@ String _wire2api_String(dynamic raw) {
   return raw as String;
 }
 
+List<String> _wire2api_StringList(dynamic raw) {
+  return (raw as List<dynamic>).cast<String>();
+}
+
+bool _wire2api_bool(dynamic raw) {
+  return raw as bool;
+}
+
+ChannelInfo _wire2api_channel_info(dynamic raw) {
+  final arr = raw as List<dynamic>;
+  if (arr.length != 12)
+    throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+  return ChannelInfo(
+    channelId: _wire2api_String(arr[0]),
+    fundingTxid: _wire2api_opt_String(arr[1]),
+    peerPubkey: _wire2api_String(arr[2]),
+    peerAlias: _wire2api_opt_String(arr[3]),
+    shortChannelId: _wire2api_opt_String(arr[4]),
+    isChannelReady: _wire2api_bool(arr[5]),
+    channelValueSatoshis: _wire2api_u64(arr[6]),
+    localBalanceMsat: _wire2api_u64(arr[7]),
+    availableBalanceForSendMsat: _wire2api_u64(arr[8]),
+    availableBalanceForRecvMsat: _wire2api_u64(arr[9]),
+    channelCanSendPayments: _wire2api_bool(arr[10]),
+    public: _wire2api_bool(arr[11]),
+  );
+}
+
+LdkNodeInfo _wire2api_ldk_node_info(dynamic raw) {
+  final arr = raw as List<dynamic>;
+  if (arr.length != 5)
+    throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+  return LdkNodeInfo(
+    nodePubKey: _wire2api_String(arr[0]),
+    numChannels: _wire2api_usize(arr[1]),
+    numUsableChannels: _wire2api_usize(arr[2]),
+    localBalanceMsat: _wire2api_u64(arr[3]),
+    numPeers: _wire2api_usize(arr[4]),
+  );
+}
+
+List<ChannelInfo> _wire2api_list_channel_info(dynamic raw) {
+  return (raw as List<dynamic>).map(_wire2api_channel_info).toList();
+}
+
+String? _wire2api_opt_String(dynamic raw) {
+  return raw == null ? null : _wire2api_String(raw);
+}
+
+int _wire2api_u64(dynamic raw) {
+  return raw as int;
+}
+
 int _wire2api_u8(dynamic raw) {
   return raw as int;
 }
 
 Uint8List _wire2api_uint_8_list(dynamic raw) {
   return raw as Uint8List;
+}
+
+void _wire2api_unit(dynamic raw) {
+  return;
+}
+
+int _wire2api_usize(dynamic raw) {
+  return raw as int;
 }
 
 // ignore_for_file: camel_case_types, non_constant_identifier_names, avoid_positional_boolean_parameters, annotate_overrides, constant_identifier_names
@@ -204,6 +420,20 @@ class RustWire implements FlutterRustBridgeWireBase {
           ffi.Pointer<wire_uint_8_list>,
           int)>();
 
+  void wire_get_node_info(
+    int port_,
+  ) {
+    return _wire_get_node_info(
+      port_,
+    );
+  }
+
+  late final _wire_get_node_infoPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+          'wire_get_node_info');
+  late final _wire_get_node_info =
+      _wire_get_node_infoPtr.asFunction<void Function(int)>();
+
   void wire_open_channel(
     int port_,
     ffi.Pointer<wire_uint_8_list> pub_key_str,
@@ -231,6 +461,75 @@ class RustWire implements FlutterRustBridgeWireBase {
   late final _wire_open_channel = _wire_open_channelPtr.asFunction<
       void Function(int, ffi.Pointer<wire_uint_8_list>,
           ffi.Pointer<wire_uint_8_list>, int, bool)>();
+
+  void wire_list_channel(
+    int port_,
+  ) {
+    return _wire_list_channel(
+      port_,
+    );
+  }
+
+  late final _wire_list_channelPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+          'wire_list_channel');
+  late final _wire_list_channel =
+      _wire_list_channelPtr.asFunction<void Function(int)>();
+
+  void wire_list_peers(
+    int port_,
+  ) {
+    return _wire_list_peers(
+      port_,
+    );
+  }
+
+  late final _wire_list_peersPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+          'wire_list_peers');
+  late final _wire_list_peers =
+      _wire_list_peersPtr.asFunction<void Function(int)>();
+
+  void wire_close_channel(
+    int port_,
+    ffi.Pointer<wire_uint_8_list> channel_id_str,
+    ffi.Pointer<wire_uint_8_list> peer_pubkey_str,
+  ) {
+    return _wire_close_channel(
+      port_,
+      channel_id_str,
+      peer_pubkey_str,
+    );
+  }
+
+  late final _wire_close_channelPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(ffi.Int64, ffi.Pointer<wire_uint_8_list>,
+              ffi.Pointer<wire_uint_8_list>)>>('wire_close_channel');
+  late final _wire_close_channel = _wire_close_channelPtr.asFunction<
+      void Function(
+          int, ffi.Pointer<wire_uint_8_list>, ffi.Pointer<wire_uint_8_list>)>();
+
+  void wire_force_close_channel(
+    int port_,
+    ffi.Pointer<wire_uint_8_list> channel_id_str,
+    ffi.Pointer<wire_uint_8_list> peer_pubkey_str,
+  ) {
+    return _wire_force_close_channel(
+      port_,
+      channel_id_str,
+      peer_pubkey_str,
+    );
+  }
+
+  late final _wire_force_close_channelPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(ffi.Int64, ffi.Pointer<wire_uint_8_list>,
+              ffi.Pointer<wire_uint_8_list>)>>('wire_force_close_channel');
+  late final _wire_force_close_channel =
+      _wire_force_close_channelPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_uint_8_list>,
+              ffi.Pointer<wire_uint_8_list>)>();
 
   ffi.Pointer<wire_uint_8_list> new_uint_8_list_0(
     int len,

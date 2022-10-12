@@ -1,22 +1,14 @@
 import 'dart:async';
-import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
-import 'package:isolate/ports.dart';
 import 'package:ldk_flutter/ldk_flutter.dart';
-import 'package:ldk_flutter/src/models/ldk_node.dart';
+import 'package:ldk_flutter/src/utils/exceptions.dart';
 import 'package:path_provider/path_provider.dart';
+import 'models/ldk_node_args.dart';
 class LdkFlutter {
   Future<String> getAppDocDirPath() async {
     final Directory _appDocDir = await getApplicationDocumentsDirectory();
     return _appDocDir.path;
-  }
-
-  Future<String> openChannel({required String pubKey, required int port, required String host, required int amountInSats, required bool isPublic})async{
-    final peerAddStr = "$host:$port";
-    final res = await loaderApi.openChannel(peerAddStr: peerAddStr,  isPublic: isPublic, amount: amountInSats, pubKeyStr: pubKey);
-    print(res);
-    return res;
   }
 
   ldkInit({required String host,
@@ -26,7 +18,7 @@ class LdkFlutter {
     required Network network,
     String? path}) async {
     final ReceivePort receivePort= ReceivePort();
-    final args = LdkNode(
+    final args = LdkNodeArgs(
         host: host,
         port: port,
         username: username,
@@ -35,12 +27,12 @@ class LdkFlutter {
         path: path ?? "~/Library/Developer/CoreSimulator/Devices/8AFA2EBF-F65B-446A-B731-FF811EEFD54D/data/Containers/Data/Application/9A7D9E46-E4FA-4A2D-A68F-998612BC5A7C/Documents" ,
         isolatePort: receivePort.sendPort);
     await Isolate.spawn(_ldkInit, args);
-    receivePort.listen((message) {
+    receivePort.listen(( message) {
      print('Ldk Node Successfully Created \nNode Id: $message');
     });
   }
 
-  _ldkInit( LdkNode node) async {
+  _ldkInit( LdkNodeArgs node) async {
     print("Creating LDK Node......");
     final res = await  loaderApi.startLdk(
         host: node.host,
@@ -52,9 +44,34 @@ class LdkFlutter {
     );
     node.isolatePort.send(res);
   }
-
-
-  Future<String> getNodeId() async {
-    return "";
+  Future<LdkNodeInfo> getNodeInfo() async {
+    final res = await loaderApi.getNodeInfo();
+    return res;
   }
+  Future<String> openChannel({required String peerPubKey, required int port, required String host, required int amountInSats, required bool isPublic})async{
+    final channels = await getAllChannels();
+    for(var e  in channels){
+      if(e.peerPubkey == peerPubKey ){
+        throw ChannelException(message: "Multiple channels unsupported: Already connected to peer $peerPubKey");
+      }
+    }
+    final peerAddStr = "$host:$port";
+    final res = await loaderApi.openChannel(peerAddStr: peerAddStr,  isPublic: isPublic, amount: amountInSats, pubKeyStr: peerPubKey);
+    print(res);
+    return res;
+  }
+  Future<List<ChannelInfo>> getAllChannels() async {
+    final res = await loaderApi.listChannel();
+    return res;
+  }
+
+  closeChannel(String channelId, String peerPubKey) async {
+    final res = await loaderApi.closeChannel(channelIdStr: channelId, peerPubkeyStr: peerPubKey);
+    return res;
+  }
+  forceCloseChannel(String channelId, String peerPubKey) async {
+    final res = await loaderApi.closeChannel(channelIdStr: channelId, peerPubkeyStr: peerPubKey);
+    return res;
+  }
+
 }

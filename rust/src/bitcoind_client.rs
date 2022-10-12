@@ -57,7 +57,7 @@ impl BitcoindClient {
 		host: String, port: u16, rpc_user: String, rpc_password: String,
 		handle: tokio::runtime::Handle,
 	) -> std::io::Result<Self> {
-		let http_endpoint = HttpEndpoint::for_host(host.clone()).with_port(port);
+		let http_endpoint = HttpEndpoint::for_host(host.clone()).with_port(port.clone());
 		let rpc_credentials =
 			base64::encode(format!("{}:{}", rpc_user.clone(), rpc_password.clone()));
 		let bitcoind_rpc_client = RpcClient::new(&rpc_credentials, http_endpoint)?;
@@ -157,7 +157,7 @@ impl BitcoindClient {
 	}
 
 	pub fn get_new_rpc_client(&self) -> std::io::Result<RpcClient> {
-		let http_endpoint = HttpEndpoint::for_host(self.host.clone()).with_port(self.port);
+		let http_endpoint = HttpEndpoint::for_host(self.host.clone()).with_port(self.port.clone());
 		let rpc_credentials =
 			base64::encode(format!("{}:{}", self.rpc_user.clone(), self.rpc_password.clone()));
 		RpcClient::new(&rpc_credentials, http_endpoint)
