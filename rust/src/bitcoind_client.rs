@@ -7,25 +7,16 @@ use bitcoin::hash_types::{BlockHash, Txid};
 use bitcoin::util::address::Address;
 use lightning::chain::chaininterface::{BroadcasterInterface, ConfirmationTarget, FeeEstimator};
 use lightning_block_sync::http::HttpEndpoint;
-pub use lightning_block_sync::rpc::RpcClient;
+use lightning_block_sync::rpc::RpcClient;
 use lightning_block_sync::{AsyncBlockSourceResult, BlockHeaderData, BlockSource};
 use serde_json;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
-#[frb(mirror(RpcClient))]
-pub struct _RpcClient {
-    basic_auth: String,
-    endpoint: HttpEndpoint,
-    client: Mutex<HttpClient>,
-    id: std::sync::atomic::AtomicUsize,
-}
-
-
-struct BitcoindClient {
+pub struct BitcoindClient {
     bitcoind_rpc_client: Arc<RpcClient>,
     host: String,
     port: u16,
@@ -44,12 +35,18 @@ pub enum Target {
 
 impl BlockSource for &BitcoindClient {
     fn get_header<'a>(
-        &'a self, header_hash: &'a BlockHash, height_hint: Option<u32>,
+        &'a self,
+        header_hash: &'a BlockHash,
+        height_hint: Option<u32>,
     ) -> AsyncBlockSourceResult<'a, BlockHeaderData> {
-        Box::pin(async move { self.bitcoind_rpc_client.get_header(header_hash, height_hint).await })
+        Box::pin(async move {
+            self.bitcoind_rpc_client
+                .get_header(header_hash, height_hint)
+                .await
+        })
     }
 
-    fn get_block<'a>(&'a self, header_hash: &'a BlockHash) ->  AsyncBlockSourceResult<'a, Block> {
+    fn get_block<'a>(&'a self, header_hash: &'a BlockHash) -> AsyncBlockSourceResult<'a, Block> {
         Box::pin(async move { self.bitcoind_rpc_client.get_block(header_hash).await })
     }
 
@@ -62,22 +59,24 @@ impl BlockSource for &BitcoindClient {
 const MIN_FEERATE: u32 = 253;
 
 impl BitcoindClient {
-
-    pub async fn new(
-        host: String, port: u16, rpc_user: String, rpc_password: String,
+    pub  fn new(
+        host: String,
+        port: u16,
+        rpc_user: String,
+        rpc_password: String,
         handle: tokio::runtime::Handle,
     ) -> std::io::Result<Self> {
         let http_endpoint = HttpEndpoint::for_host(host.clone()).with_port(port);
         let rpc_credentials =
             base64::encode(format!("{}:{}", rpc_user.clone(), rpc_password.clone()));
         let bitcoind_rpc_client = RpcClient::new(&rpc_credentials, http_endpoint)?;
-        let _dummy = bitcoind_rpc_client
-            .call_method::<BlockchainInfo>("getblockchaininfo", &vec![])
-            .await
-            .map_err(|_| {
-                std::io::Error::new(std::io::ErrorKind::PermissionDenied,
-                                    "Failed to make initial call to bitcoind - please check your RPC user/password and access settings")
-            })?;
+        // let _dummy = bitcoind_rpc_client
+        //     .call_method::<BlockchainInfo>("getblockchaininfo", &vec![])
+        //     .await
+        //     .map_err(|_| {
+        //         std::io::Error::new(std::io::ErrorKind::PermissionDenied,
+        //                             "Failed to make initial call to bitcoind - please check your RPC user/password and access settings")
+        //     }).unwrap();
         let mut fees: HashMap<Target, AtomicU32> = HashMap::new();
         fees.insert(Target::Background, AtomicU32::new(MIN_FEERATE));
         fees.insert(Target::Normal, AtomicU32::new(2000));
@@ -91,16 +90,17 @@ impl BitcoindClient {
             fees: Arc::new(fees),
             handle: handle.clone(),
         };
-       BitcoindClient::poll_for_fee_estimates(
-            client.fees.clone(),
-            client.bitcoind_rpc_client.clone(),
-            handle,
-        );
+        // BitcoindClient::poll_for_fee_estimates(
+        //     client.fees.clone(),
+        //     client.bitcoind_rpc_client.clone(),
+        //     handle,
+        // );
         Ok(client)
     }
 
     fn poll_for_fee_estimates(
-        fees: Arc<HashMap<Target, AtomicU32>>, rpc_client: Arc<RpcClient>,
+        fees: Arc<HashMap<Target, AtomicU32>>,
+        rpc_client: Arc<RpcClient>,
         handle: tokio::runtime::Handle,
     ) {
         handle.spawn(async move {
@@ -157,7 +157,9 @@ impl BitcoindClient {
                 fees.get(&Target::Background)
                     .unwrap()
                     .store(background_estimate, Ordering::Release);
-                fees.get(&Target::Normal).unwrap().store(normal_estimate, Ordering::Release);
+                fees.get(&Target::Normal)
+                    .unwrap()
+                    .store(normal_estimate, Ordering::Release);
                 fees.get(&Target::HighPriority)
                     .unwrap()
                     .store(high_prio_estimate, Ordering::Release);
@@ -168,8 +170,11 @@ impl BitcoindClient {
 
     pub fn get_new_rpc_client(&self) -> std::io::Result<RpcClient> {
         let http_endpoint = HttpEndpoint::for_host(self.host.clone()).with_port(self.port);
-        let rpc_credentials =
-            base64::encode(format!("{}:{}", self.rpc_user.clone(), self.rpc_password.clone()));
+        let rpc_credentials = base64::encode(format!(
+            "{}:{}",
+            self.rpc_user.clone(),
+            self.rpc_password.clone()
+        ));
         RpcClient::new(&rpc_credentials, http_endpoint)
     }
 
@@ -187,17 +192,17 @@ impl BitcoindClient {
     pub async fn fund_raw_transaction(&self, raw_tx: RawTx) -> FundedTx {
         let raw_tx_json = serde_json::json!(raw_tx.0);
         let options = serde_json::json!({
-			// LDK gives us feerates in satoshis per KW but Bitcoin Core here expects fees
-			// denominated in satoshis per vB. First we need to multiply by 4 to convert weight
-			// units to virtual bytes, then divide by 1000 to convert KvB to vB.
-			"fee_rate": self.get_est_sat_per_1000_weight(ConfirmationTarget::Normal) as f64 / 250.0,
-			// While users could "cancel" a channel open by RBF-bumping and paying back to
-			// themselves, we don't allow it here as its easy to have users accidentally RBF bump
-			// and pay to the channel funding address, which results in loss of funds. Real
-			// LDK-based applications should enable RBF bumping and RBF bump either to a local
-			// change address or to a new channel output negotiated with the same node.
-			"replaceable": false,
-		});
+            // LDK gives us feerates in satoshis per KW but Bitcoin Core here expects fees
+            // denominated in satoshis per vB. First we need to multiply by 4 to convert weight
+            // units to virtual bytes, then divide by 1000 to convert KvB to vB.
+            "fee_rate": self.get_est_sat_per_1000_weight(ConfirmationTarget::Normal) as f64 / 250.0,
+            // While users could "cancel" a channel open by RBF-bumping and paying back to
+            // themselves, we don't allow it here as its easy to have users accidentally RBF bump
+            // and pay to the channel funding address, which results in loss of funds. Real
+            // LDK-based applications should enable RBF bumping and RBF bump either to a local
+            // change address or to a new channel output negotiated with the same node.
+            "replaceable": false,
+        });
         self.bitcoind_rpc_client
             .call_method("fundrawtransaction", &[raw_tx_json, options])
             .await
@@ -241,15 +246,21 @@ impl BitcoindClient {
 impl FeeEstimator for BitcoindClient {
     fn get_est_sat_per_1000_weight(&self, confirmation_target: ConfirmationTarget) -> u32 {
         match confirmation_target {
-            ConfirmationTarget::Background => {
-                self.fees.get(&Target::Background).unwrap().load(Ordering::Acquire)
-            }
-            ConfirmationTarget::Normal => {
-                self.fees.get(&Target::Normal).unwrap().load(Ordering::Acquire)
-            }
-            ConfirmationTarget::HighPriority => {
-                self.fees.get(&Target::HighPriority).unwrap().load(Ordering::Acquire)
-            }
+            ConfirmationTarget::Background => self
+                .fees
+                .get(&Target::Background)
+                .unwrap()
+                .load(Ordering::Acquire),
+            ConfirmationTarget::Normal => self
+                .fees
+                .get(&Target::Normal)
+                .unwrap()
+                .load(Ordering::Acquire),
+            ConfirmationTarget::HighPriority => self
+                .fees
+                .get(&Target::HighPriority)
+                .unwrap()
+                .load(Ordering::Acquire),
         }
     }
 }

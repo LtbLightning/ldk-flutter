@@ -12,10 +12,10 @@ std = ["bitcoin/std", "lightning/std", "lightning-invoice/std"]
 lightning = { version = "0.0.110", features = ["max_level_trace"] }
 lightning-block-sync = { version = "0.0.110", features = [ "rpc-client" ] }
 lightning-invoice = { version = "0.18" }
+lightning-net-tokio = { version = "0.0.110" }
 lightning-persister = { version = "0.0.110" }
 lightning-background-processor = { version = "0.0.110" }
 lightning-rapid-gossip-sync = { version = "0.0.110" }
-lightning-net-tokio = { version = "0.0.110" }
 base64 = "0.13.0"
 bitcoin = "0.28.1"
 secp256k1 = { version = "0.22", features = ["global-context", "recovery"] }
@@ -30,6 +30,10 @@ rand = "0.8"
 num-bigint = { version = "0.4", features = ["rand"] }
 lazy_static = "1.4.0"
 flutter_rust_bridge = { version =  "1.38.0" }
+anyhow = { version = "1.0.49" }
 
 [build-dependencies]
 flutter_rust_bridge_codegen = { version =  "1.38.0" }
+
+[lib]
+crate-type = ["staticlib", "cdylib"]

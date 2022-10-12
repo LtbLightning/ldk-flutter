@@ -7,4 +7,4 @@ final DynamicLibrary dylib = Platform.isIOS
     ? DynamicLibrary.executable()
     : DynamicLibrary.open('liblightning.so');
 
-NativeLibrary  loaderApi = NativeLibrary(dylib);
+RustImpl  loaderApi = RustImpl(dylib);

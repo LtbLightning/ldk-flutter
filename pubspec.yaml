@@ -23,11 +23,11 @@ dev_dependencies:
   build_runner: ^2.2.0
   ffigen: ^6.1.2
 
-ffigen:
-  output: 'lib/src/generated/bindings.dart'
-  headers:
-    entry-points:
-      - 'ios/Classes/lightning.h'
+#ffigen:
+#  output: 'lib/src/generated/bindings.dart'
+#  headers:
+#    entry-points:
+#      - 'ios/Classes/lightning.h'
 flutter:
   # This section identifies this Flutter project as a plugin project.
   # The 'pluginClass' specifies the class (in Java, Kotlin, Swift, Objective-C, etc.)
