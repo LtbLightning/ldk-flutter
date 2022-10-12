@@ -12,16 +12,25 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
 import 'dart:ffi' as ffi;
 
 abstract class Rust {
-  Future<String> ldkIni(
-      {required String host,
-      required int port,
-      required String username,
+  Future<bool> checkRpcInit({dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kCheckRpcInitConstMeta;
+
+  Future<String> getNodeId({dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kGetNodeIdConstMeta;
+
+  Future<int> loadClient(
+      {required String username,
       required String password,
+      required String host,
+      required int isolatePort,
       required String network,
-      required String storagePath,
+      required String path,
+      required int port,
       dynamic hint});
 
-  FlutterRustBridgeTaskConstMeta get kLdkIniConstMeta;
+  FlutterRustBridgeTaskConstMeta get kLoadClientConstMeta;
 }
 
 class RustImpl extends FlutterRustBridgeBase<RustWire> implements Rust {
@@ -29,39 +38,72 @@ class RustImpl extends FlutterRustBridgeBase<RustWire> implements Rust {
 
   RustImpl.raw(RustWire inner) : super(inner);
 
-  Future<String> ldkIni(
-          {required String host,
-          required int port,
-          required String username,
-          required String password,
-          required String network,
-          required String storagePath,
-          dynamic hint}) =>
+  Future<bool> checkRpcInit({dynamic hint}) =>
       executeNormal(FlutterRustBridgeTask(
-        callFfi: (port_) => inner.wire_ldk_ini(
-            port_,
-            _api2wire_String(host),
-            _api2wire_u16(port),
-            _api2wire_String(username),
-            _api2wire_String(password),
-            _api2wire_String(network),
-            _api2wire_String(storagePath)),
-        parseSuccessData: _wire2api_String,
-        constMeta: kLdkIniConstMeta,
-        argValues: [host, port, username, password, network, storagePath],
+        callFfi: (port_) => inner.wire_check_rpc_init(port_),
+        parseSuccessData: _wire2api_bool,
+        constMeta: kCheckRpcInitConstMeta,
+        argValues: [],
         hint: hint,
       ));
 
-  FlutterRustBridgeTaskConstMeta get kLdkIniConstMeta =>
+  FlutterRustBridgeTaskConstMeta get kCheckRpcInitConstMeta =>
       const FlutterRustBridgeTaskConstMeta(
-        debugName: "ldk_ini",
+        debugName: "check_rpc_init",
+        argNames: [],
+      );
+
+  Future<String> getNodeId({dynamic hint}) =>
+      executeNormal(FlutterRustBridgeTask(
+        callFfi: (port_) => inner.wire_get_node_id(port_),
+        parseSuccessData: _wire2api_String,
+        constMeta: kGetNodeIdConstMeta,
+        argValues: [],
+        hint: hint,
+      ));
+
+  FlutterRustBridgeTaskConstMeta get kGetNodeIdConstMeta =>
+      const FlutterRustBridgeTaskConstMeta(
+        debugName: "get_node_id",
+        argNames: [],
+      );
+
+  Future<int> loadClient(
+          {required String username,
+          required String password,
+          required String host,
+          required int isolatePort,
+          required String network,
+          required String path,
+          required int port,
+          dynamic hint}) =>
+      executeNormal(FlutterRustBridgeTask(
+        callFfi: (port_) => inner.wire_load_client(
+            port_,
+            _api2wire_String(username),
+            _api2wire_String(password),
+            _api2wire_String(host),
+            _api2wire_u16(isolatePort),
+            _api2wire_String(network),
+            _api2wire_String(path),
+            _api2wire_u16(port)),
+        parseSuccessData: _wire2api_u32,
+        constMeta: kLoadClientConstMeta,
+        argValues: [username, password, host, isolatePort, network, path, port],
+        hint: hint,
+      ));
+
+  FlutterRustBridgeTaskConstMeta get kLoadClientConstMeta =>
+      const FlutterRustBridgeTaskConstMeta(
+        debugName: "load_client",
         argNames: [
-          "host",
-          "port",
           "username",
           "password",
+          "host",
+          "isolatePort",
           "network",
-          "storagePath"
+          "path",
+          "port"
         ],
       );
 
@@ -93,6 +135,14 @@ String _wire2api_String(dynamic raw) {
   return raw as String;
 }
 
+bool _wire2api_bool(dynamic raw) {
+  return raw as bool;
+}
+
+int _wire2api_u32(dynamic raw) {
+  return raw as int;
+}
+
 int _wire2api_u8(dynamic raw) {
   return raw as int;
 }
@@ -122,45 +172,77 @@ class RustWire implements FlutterRustBridgeWireBase {
           lookup)
       : _lookup = lookup;
 
-  void wire_ldk_ini(
+  void wire_check_rpc_init(
     int port_,
-    ffi.Pointer<wire_uint_8_list> host,
-    int port,
-    ffi.Pointer<wire_uint_8_list> username,
-    ffi.Pointer<wire_uint_8_list> password,
-    ffi.Pointer<wire_uint_8_list> network,
-    ffi.Pointer<wire_uint_8_list> storage_path,
   ) {
-    return _wire_ldk_ini(
+    return _wire_check_rpc_init(
       port_,
-      host,
-      port,
-      username,
-      password,
-      network,
-      storage_path,
     );
   }
 
-  late final _wire_ldk_iniPtr = _lookup<
+  late final _wire_check_rpc_initPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+          'wire_check_rpc_init');
+  late final _wire_check_rpc_init =
+      _wire_check_rpc_initPtr.asFunction<void Function(int)>();
+
+  void wire_get_node_id(
+    int port_,
+  ) {
+    return _wire_get_node_id(
+      port_,
+    );
+  }
+
+  late final _wire_get_node_idPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+          'wire_get_node_id');
+  late final _wire_get_node_id =
+      _wire_get_node_idPtr.asFunction<void Function(int)>();
+
+  void wire_load_client(
+    int port_,
+    ffi.Pointer<wire_uint_8_list> username,
+    ffi.Pointer<wire_uint_8_list> password,
+    ffi.Pointer<wire_uint_8_list> host,
+    int isolate_port,
+    ffi.Pointer<wire_uint_8_list> network,
+    ffi.Pointer<wire_uint_8_list> path,
+    int port,
+  ) {
+    return _wire_load_client(
+      port_,
+      username,
+      password,
+      host,
+      isolate_port,
+      network,
+      path,
+      port,
+    );
+  }
+
+  late final _wire_load_clientPtr = _lookup<
       ffi.NativeFunction<
           ffi.Void Function(
               ffi.Int64,
               ffi.Pointer<wire_uint_8_list>,
+              ffi.Pointer<wire_uint_8_list>,
+              ffi.Pointer<wire_uint_8_list>,
               ffi.Uint16,
               ffi.Pointer<wire_uint_8_list>,
               ffi.Pointer<wire_uint_8_list>,
-              ffi.Pointer<wire_uint_8_list>,
-              ffi.Pointer<wire_uint_8_list>)>>('wire_ldk_ini');
-  late final _wire_ldk_ini = _wire_ldk_iniPtr.asFunction<
+              ffi.Uint16)>>('wire_load_client');
+  late final _wire_load_client = _wire_load_clientPtr.asFunction<
       void Function(
           int,
           ffi.Pointer<wire_uint_8_list>,
+          ffi.Pointer<wire_uint_8_list>,
+          ffi.Pointer<wire_uint_8_list>,
           int,
           ffi.Pointer<wire_uint_8_list>,
           ffi.Pointer<wire_uint_8_list>,
-          ffi.Pointer<wire_uint_8_list>,
-          ffi.Pointer<wire_uint_8_list>)>();
+          int)>();
 
   ffi.Pointer<wire_uint_8_list> new_uint_8_list_0(
     int len,

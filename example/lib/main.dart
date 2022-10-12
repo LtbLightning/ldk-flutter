@@ -23,16 +23,21 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     initPlatformState();
+    test();
   }
-
+  test() async{
+    final init = await _ldkFlutterPlugin.getNodeId();
+    print(init);
+  }
   // Platform messages are asynchronous, so we initialize in an async method.
   Future<void> initPlatformState() async {
     String platformVersion;
     // Platform messages may fail, so we use a try/catch PlatformException.
     // We also handle the message potentially returning null.
     try {
-      platformVersion =
-          await _ldkFlutterPlugin.getPlatformVersion() ?? 'Unknown platform version';
+      platformVersion = await _ldkFlutterPlugin.getPlatformVersion();
+      final init = await _ldkFlutterPlugin.checkIfInitialized();
+      print(init);
     } on PlatformException {
       platformVersion = 'Failed to get platform version.';
     }

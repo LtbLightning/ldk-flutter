@@ -59,7 +59,7 @@ impl BlockSource for &BitcoindClient {
 const MIN_FEERATE: u32 = 253;
 
 impl BitcoindClient {
-    pub  fn new(
+    pub async fn new(
         host: String,
         port: u16,
         rpc_user: String,

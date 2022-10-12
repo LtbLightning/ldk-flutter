@@ -6,21 +6,20 @@ use crate::types::{
 };
 use crate::utils::config_network;
 use crate::{file_io, utils};
-use anyhow;
 use bitcoin::blockdata::constants::genesis_block;
 use bitcoin::blockdata::transaction::Transaction;
 use bitcoin::consensus::encode;
 use bitcoin::network::constants::Network;
 use bitcoin::BlockHash;
 use bitcoin_bech32::WitnessProgram;
-use futures::executor::block_on;
+use lazy_static::__Deref;
 use lazy_static::lazy_static;
 use lightning::chain;
 use lightning::chain::chaininterface::{BroadcasterInterface, ConfirmationTarget, FeeEstimator};
-use lightning::chain::chainmonitor;
 use lightning::chain::channelmonitor::ChannelMonitor;
 use lightning::chain::keysinterface::{InMemorySigner, KeysInterface, KeysManager, Recipient};
-use lightning::chain::{BestBlock, Watch};
+use lightning::chain::BestBlock;
+use lightning::chain::{chainmonitor, Watch};
 use lightning::ln::channelmanager;
 use lightning::ln::channelmanager::{ChainParameters, ChannelManagerReadArgs};
 use lightning::ln::peer_handler::{IgnoringMessageHandler, MessageHandler};
@@ -29,11 +28,7 @@ use lightning::util::config::UserConfig;
 use lightning::util::events::{Event, PaymentPurpose};
 use lightning::util::ser::ReadableArgs;
 use lightning_background_processor::{BackgroundProcessor, GossipSync};
-use lightning_block_sync::init;
-use lightning_block_sync::poll;
-use lightning_block_sync::rpc::RpcClient;
-use lightning_block_sync::SpvClient;
-use lightning_block_sync::UnboundedCache;
+use lightning_block_sync::{init, poll, SpvClient, UnboundedCache};
 use lightning_invoice::payment;
 use lightning_invoice::utils::DefaultRouter;
 use lightning_persister::FilesystemPersister;
@@ -41,18 +36,16 @@ use rand::{thread_rng, Rng, RngCore};
 use secp256k1::{PublicKey, Secp256k1};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::fs;
 use std::fs::File;
 use std::io;
 use std::io::Write;
-use std::net::SocketAddr;
-use std::ops::Deref;
-use std::path::{Path, PathBuf};
+use std::net::{SocketAddr, ToSocketAddrs};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::RwLock;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::{Mutex, RwLock};
 use std::time::{Duration, SystemTime};
-use std::{env, fs};
-use tokio::runtime::Runtime;
 
 lazy_static! {
     static ref BITCOIND_CLIENT: RwLock<Option<Arc<BitcoindClient>>> = RwLock::new(None);
@@ -105,13 +98,7 @@ fn create_keys_manager(ldk_data_dir: String) {
     let mut keysmanager = KEYS_MANAGER.write().unwrap();
     *keysmanager = Arc::new(keys_manager);
 }
-
- fn init_bitcoin_client(
-    host: String,
-    port: u16,
-    username: String,
-    password: String,
-) -> Arc<BitcoindClient> {
+pub async fn init_bitcoin_client(host: String, port: u16, username: String, password: String) {
     let bitcoind_client = BitcoindClient::new(
         host.clone(),
         port,
@@ -119,14 +106,14 @@ fn create_keys_manager(ldk_data_dir: String) {
         password.clone(),
         tokio::runtime::Handle::current(),
     )
-        .unwrap();
+    .await
+    .unwrap();
     let client = Arc::new(bitcoind_client);
     let mut bclient = BITCOIND_CLIENT.write().unwrap();
     *bclient = Some(client.clone());
-    client
 }
 
-fn init_directory(path: String) {
+pub fn init_directory(path: String) {
     let ldk_data_dir = format!("{}/.ldk", path);
     fs::create_dir_all(ldk_data_dir.clone()).unwrap();
     let mut path = PATH.write().unwrap();
@@ -199,21 +186,7 @@ async fn init_channel_manager(
     (channel_manager, channelmonitors, channel_manager_blockhash)
 }
 
- pub fn ldk_ini(
-    host: String,
-    port: u16,
-    username: String,
-    password: String,
-    network: String,
-    storage_path: String,
-) -> String {
-     let rt = Runtime::new().unwrap();
-     rt.block_on(async {
-         ldk_init(host, port, username, password, network, storage_path).await
-     })
-}
-
- async  fn ldk_init(
+pub async fn ldk_init(
     host: String,
     port: u16,
     username: String,
@@ -226,289 +199,282 @@ async fn init_channel_manager(
     let ldk_data_dir = PATH.read().unwrap().clone();
     //Initialize our bitcoind client.
     let node_network = config_network(network);
-    let rt = Runtime::new().unwrap();
-    //  rt.block_on(async {
-        init_bitcoin_client(
-            host.clone(),
-            port.clone(),
-            username.clone(),
-            password.clone(),
-        );
-    // });
+    init_bitcoin_client(host, port, username, password).await;
 
+    let bitcoind_client = BITCOIND_CLIENT.read().unwrap().clone().unwrap();
+    let fee_estimator = bitcoind_client.clone();
 
-    // let bitcoind_client = Arc::new(client);
-    // //  let bitcoind_client = BITCOIND_CLIENT.read().unwrap().clone();
-    // let fee_estimator = bitcoind_client.clone();
-    //
-    // // Step 2: Initialize the Logger
-    // //let logger = Arc::new(FilesystemLogger::new(ldk_data_dir.clone()));
-    //
-    // //  Step 3: Initialize the BroadcasterInterface
-    // //   BitcoindClient implements the BroadcasterInterface trait, so it'll act as our transaction
-    // //   broadcaster.
-    // let broadcaster = bitcoind_client.clone();
+    // Step 2: Initialize the Logger
+    let logger = Arc::new(FilesystemLogger::new(ldk_data_dir.clone()));
+
+    //  Step 3: Initialize the BroadcasterInterface
+    //   BitcoindClient implements the BroadcasterInterface trait, so it'll act as our transaction
+    //   broadcaster.
+    let broadcaster = bitcoind_client.clone();
     // Step 4: Initialize Persist
-    // let persister = Arc::new(FilesystemPersister::new(ldk_data_dir.clone()));
-    // ldk_data_dir.to_string()
-    ldk_data_dir.to_string()
+    let persister = Arc::new(FilesystemPersister::new(ldk_data_dir.clone()));
     // // Step 5: Initialize the ChainMonitor
-    // let chain_monitor: Arc<ChainMonitor> = Arc::new(chainmonitor::ChainMonitor::new(
-    //     None,
-    //     broadcaster.clone().clone(),
-    //     logger.clone(),
-    //     fee_estimator.clone(),
-    //     persister.clone(),
-    // ));
-    //
-    // // Step 6: Initialize the KeysManager
-    // create_keys_manager(ldk_data_dir.clone());
-    // let keys_manager = KEYS_MANAGER.write().unwrap().clone();
+    let chain_monitor: Arc<ChainMonitor> = Arc::new(chainmonitor::ChainMonitor::new(
+        None,
+        broadcaster.clone().clone(),
+        logger.clone(),
+        fee_estimator.clone(),
+        persister.clone(),
+    ));
 
-    // // Step 8: Initialize the ChannelManager
-    // let (channel_manager, mut channelmonitors, channel_manager_blockhash) = init_channel_manager(
-    //     node_network,
-    //     persister.clone(),
-    //     chain_monitor.clone(),
-    //     keys_manager.clone(),
-    //     logger.clone(),
-    //     ldk_data_dir.clone(),
-    // )
-    // .await;
-    // ///TODO Create channel manager static
-    // // let  channel_manager =  CHANNEL_MANAGER.read().unwrap().unwrap().clone();
-    // //  let mut channel_manager_stat= CHANNEL_MANAGER.write().unwrap();
-    // //  *channel_manager_stat = Some(Arc::new(channel_manager));
-    //
-    // // Step 9: Sync ChannelMonitors and ChannelManager to chain tip
-    // let mut chain_listener_channel_monitors = Vec::new();
-    // let mut cache = UnboundedCache::new();
-    // let mut chain_tip: Option<poll::ValidatedBlockHeader> = None;
-    // if check_if_restarting(ldk_data_dir.clone()) {
-    //     let mut chain_listeners = vec![(
-    //         channel_manager_blockhash,
-    //         &channel_manager as &dyn chain::Listen,
-    //     )];
-    //
-    //     for (blockhash, channel_monitor) in channelmonitors.drain(..) {
-    //         let outpoint = channel_monitor.get_funding_txo().0;
-    //         chain_listener_channel_monitors.push((
-    //             blockhash,
-    //             (
-    //                 channel_monitor,
-    //                 broadcaster.clone(),
-    //                 fee_estimator.clone(),
-    //                 logger.clone(),
-    //             ),
-    //             outpoint,
-    //         ));
-    //     }
-    //
-    //     for monitor_listener_info in chain_listener_channel_monitors.iter_mut() {
-    //         chain_listeners.push((
-    //             monitor_listener_info.0,
-    //             &monitor_listener_info.1 as &dyn chain::Listen,
-    //         ));
-    //     }
-    //     chain_tip = Some(
-    //         init::synchronize_listeners(
-    //             &mut bitcoind_client.deref(),
-    //             node_network,
-    //             &mut cache,
-    //             chain_listeners,
-    //         )
-    //         .await
-    //         .unwrap(),
-    //     );
-    // }
-    // // Step 10: Give ChannelMonitors to ChainMonitor
-    // for item in chain_listener_channel_monitors.drain(..) {
-    //     let channel_monitor = item.1 .0;
-    //     let funding_outpoint = item.2;
-    //     chain_monitor
-    //         .watch_channel(funding_outpoint, channel_monitor)
-    //         .unwrap();
-    // }
-    //
-    // // Step 11: Optional: Initialize the P2PGossipSync
-    // let genesis = genesis_block(node_network).header.block_hash();
-    // let network_graph_path = format!("{}/network_graph", ldk_data_dir.clone());
-    // let network_graph = Arc::new(file_io::read_network(
-    //     Path::new(&network_graph_path),
-    //     genesis,
-    //     logger.clone(),
-    // ));
-    // let gossip_sync = Arc::new(P2PGossipSync::new(
-    //     Arc::clone(&network_graph),
-    //     None::<Arc<dyn chain::Access + Send + Sync>>,
-    //     logger.clone(),
-    // ));
-    // // Step 12: Initialize the PeerManager
-    // let channel_manager = Arc::new(channel_manager);
-    // let mut ephemeral_bytes = [0; 32];
-    // rand::thread_rng().fill_bytes(&mut ephemeral_bytes);
-    // let lightning_msg_handler = MessageHandler {
-    //     chan_handler: channel_manager.clone(),
-    //     route_handler: gossip_sync.clone(),
-    // };
-    // let peer_manager: Arc<PeerManager> = Arc::new(PeerManager::new(
-    //     lightning_msg_handler,
-    //     keys_manager.get_node_secret(Recipient::Node).unwrap(),
-    //     &ephemeral_bytes,
-    //     logger.clone(),
-    //     Arc::new(IgnoringMessageHandler {}),
-    // ));
-    //
+    // Step 6: Initialize the KeysManager
+    create_keys_manager(ldk_data_dir.clone());
+    let keys_manager = KEYS_MANAGER.read().unwrap().clone();
+
+    // Step 8: Initialize the ChannelManager
+    let (channel_manager, mut channelmonitors, channel_manager_blockhash) = init_channel_manager(
+        node_network,
+        persister.clone(),
+        chain_monitor.clone(),
+        keys_manager.clone(),
+        logger.clone(),
+        ldk_data_dir.clone(),
+    )
+    .await;
+
+    // Step 9: Sync ChannelMonitors and ChannelManager to chain tip
+    let mut chain_listener_channel_monitors = Vec::new();
+    let mut cache = UnboundedCache::new();
+    let mut chain_tip: Option<poll::ValidatedBlockHeader> = None;
+    if check_if_restarting(ldk_data_dir.clone()) {
+        let mut chain_listeners = vec![(
+            channel_manager_blockhash,
+            &channel_manager as &dyn chain::Listen,
+        )];
+
+        for (blockhash, channel_monitor) in channelmonitors.drain(..) {
+            let outpoint = channel_monitor.get_funding_txo().0;
+            chain_listener_channel_monitors.push((
+                blockhash,
+                (
+                    channel_monitor,
+                    broadcaster.clone(),
+                    fee_estimator.clone(),
+                    logger.clone(),
+                ),
+                outpoint,
+            ));
+        }
+
+        for monitor_listener_info in chain_listener_channel_monitors.iter_mut() {
+            chain_listeners.push((
+                monitor_listener_info.0,
+                &monitor_listener_info.1 as &dyn chain::Listen,
+            ));
+        }
+        chain_tip = Some(
+            init::synchronize_listeners(
+                &mut bitcoind_client.deref(),
+                node_network,
+                &mut cache,
+                chain_listeners,
+            )
+            .await
+            .unwrap(),
+        );
+    }
+    // Step 10: Give ChannelMonitors to ChainMonitor
+    for item in chain_listener_channel_monitors.drain(..) {
+        let channel_monitor = item.1 .0;
+        let funding_outpoint = item.2;
+        chain_monitor
+            .watch_channel(funding_outpoint, channel_monitor)
+            .unwrap();
+    }
+
+    // Step 11: Optional: Initialize the P2PGossipSync
+    let genesis = genesis_block(node_network).header.block_hash();
+    let network_graph_path = format!("{}/network_graph", ldk_data_dir.clone());
+    let network_graph = Arc::new(file_io::read_network(
+        Path::new(&network_graph_path),
+        genesis,
+        logger.clone(),
+    ));
+    let gossip_sync = Arc::new(P2PGossipSync::new(
+        Arc::clone(&network_graph),
+        None::<Arc<dyn chain::Access + Send + Sync>>,
+        logger.clone(),
+    ));
+    // Step 12: Initialize the PeerManager
+    let channel_manager = Arc::new(channel_manager);
+    let mut ephemeral_bytes = [0; 32];
+    rand::thread_rng().fill_bytes(&mut ephemeral_bytes);
+    let lightning_msg_handler = MessageHandler {
+        chan_handler: channel_manager.clone(),
+        route_handler: gossip_sync.clone(),
+    };
+    let peer_manager: Arc<PeerManager> = Arc::new(PeerManager::new(
+        lightning_msg_handler,
+        keys_manager
+            .clone()
+            .get_node_secret(Recipient::Node)
+            .unwrap(),
+        &ephemeral_bytes,
+        logger.clone(),
+        Arc::new(IgnoringMessageHandler {}),
+    ));
+
     // // Step 13: Initialize networking
-    //
-    // let stop_listen_connect = Arc::new(AtomicBool::new(false));
-    // let stop_listen = Arc::clone(&stop_listen_connect);
-    // let peer_mgr_clone = peer_manager.clone();
-    // tokio::spawn(async move {
-    //     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
-    //         .await
-    //         .expect("Failed to bind to listen port - is something else already listening on it?");
-    //     loop {
-    //         let peer_mgr = peer_mgr_clone.clone();
-    //         let tcp_stream = listener.accept().await.unwrap().0;
-    //         if stop_listen.load(Ordering::Acquire) {
-    //             return;
-    //         }
-    //         tokio::spawn(async move {
-    //             lightning_net_tokio::setup_inbound(
-    //                 peer_mgr.clone(),
-    //                 tcp_stream.into_std().unwrap(),
-    //             )
-    //             .await;
-    //         });
-    //     }
-    // });
-    //
-    // // Step 14: Connect and Disconnect Blocks
-    // if chain_tip.is_none() {
-    //     chain_tip = Some(
-    //         init::validate_best_block_header(&mut bitcoind_client.deref())
-    //             .await
-    //             .unwrap(),
-    //     );
-    // }
-    // let channel_manager_listener = channel_manager.clone();
-    // let chain_monitor_listener = chain_monitor.clone();
-    // let bitcoind_block_source = bitcoind_client.clone();
-    // let network = node_network.clone();
-    // tokio::spawn(async move {
-    //     let mut derefed = bitcoind_block_source.deref();
-    //     let chain_poller = poll::ChainPoller::new(&mut derefed, network);
-    //     let chain_listener = (chain_monitor_listener, channel_manager_listener);
-    //     let mut spv_client = SpvClient::new(
-    //         chain_tip.unwrap(),
-    //         chain_poller,
-    //         &mut cache,
-    //         &chain_listener,
-    //     );
-    //     loop {
-    //         spv_client.poll_best_tip().await.unwrap();
-    //         tokio::time::sleep(Duration::from_secs(1)).await;
-    //     }
-    // });
-    //
-    // // Step 15: Handle LDK Events
-    // let channel_manager_event_listener = channel_manager.clone();
-    // let keys_manager_listener = keys_manager.clone();
-    // let inbound_payments: PaymentInfoStorage = Arc::new(Mutex::new(HashMap::new()));
-    // let outbound_payments: PaymentInfoStorage = Arc::new(Mutex::new(HashMap::new()));
-    // let inbound_pmts_for_events = inbound_payments.clone();
-    // let outbound_pmts_for_events = outbound_payments.clone();
-    // let bitcoind_rpc = bitcoind_client.clone();
-    // let network_graph_events = network_graph.clone();
-    // let handle = tokio::runtime::Handle::current();
-    // let event_handler = move |event: &Event| {
-    //     handle.block_on(handle_ldk_events(
-    //         &channel_manager_event_listener,
-    //         &bitcoind_rpc,
-    //         &network_graph_events,
-    //         &keys_manager_listener,
-    //         &inbound_pmts_for_events,
-    //         &outbound_pmts_for_events,
-    //         node_network.clone(),
-    //         event,
-    //     ));
-    // };
-    //
-    // // Step 16: Initialize routing ProbabilisticScorer
-    // let scorer_path = format!("{}/scorer", ldk_data_dir.clone());
-    // let scorer = Arc::new(Mutex::new(file_io::read_scorer(
-    //     Path::new(&scorer_path),
-    //     Arc::clone(&network_graph),
-    //     Arc::clone(&logger),
-    // )));
-    //
-    // // Step 17: Create InvoicePayer
-    // let router = DefaultRouter::new(
-    //     network_graph.clone(),
-    //     logger.clone(),
-    //     keys_manager.get_secure_random_bytes(),
-    // );
-    // let invoice_payer = Arc::new(InvoicePayer::new(
-    //     channel_manager.clone(),
-    //     router,
-    //     scorer.clone(),
-    //     logger.clone(),
-    //     event_handler,
-    //     payment::Retry::Timeout(Duration::from_secs(10)),
-    // ));
-    //
-    // // Step 19: Background Processing
-    // let background_processor = BackgroundProcessor::start(
-    //     persister.clone(),
-    //     invoice_payer.clone(),
-    //     chain_monitor.clone(),
-    //     channel_manager.clone(),
-    //     GossipSync::p2p(gossip_sync.clone()),
-    //     peer_manager.clone(),
-    //     logger.clone(),
-    //     Some(scorer.clone()),
-    // );
-    // // Regularly reconnect to channel peers.
-    // let connect_cm = Arc::clone(&channel_manager);
-    // let connect_pm = Arc::clone(&peer_manager);
-    // let peer_data_path = format!("{}/channel_peer_data", ldk_data_dir.clone());
-    // let stop_connect = Arc::clone(&stop_listen_connect);
-    // tokio::spawn(async move {
-    //     let mut interval = tokio::time::interval(Duration::from_secs(1));
-    //     loop {
-    //         interval.tick().await;
-    //         match file_io::read_channel_peer_data(Path::new(&peer_data_path)) {
-    //             Ok(info) => {
-    //                 let peers = connect_pm.get_peer_node_ids();
-    //                 for node_id in connect_cm
-    //                     .list_channels()
-    //                     .iter()
-    //                     .map(|chan| chan.counterparty.node_id)
-    //                     .filter(|id| !peers.contains(id))
-    //                 {
-    //                     if stop_connect.load(Ordering::Acquire) {
-    //                         return;
-    //                     }
-    //                     for (pubkey, peer_addr) in info.iter() {
-    //                         if *pubkey == node_id {
-    //                             let _ = do_connect_peer(
-    //                                 *pubkey,
-    //                                 peer_addr.clone(),
-    //                                 Arc::clone(&connect_pm),
-    //                             )
-    //                             .await;
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //             Err(e) => println!("ERROR: error reading channel peer info from disk: {:?}", e),
-    //         }
-    //     }
-    // });
-    // channel_manager.clone().get_our_node_id().to_string()
-}
 
+    let stop_listen_connect = Arc::new(AtomicBool::new(false));
+    let stop_listen = Arc::clone(&stop_listen_connect);
+    let peer_mgr_clone = peer_manager.clone();
+    tokio::spawn(async move {
+        let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
+            .await
+            .expect("Failed to bind to listen port - is something else already listening on it?");
+        loop {
+            let peer_mgr = peer_mgr_clone.clone();
+            let tcp_stream = listener.accept().await.unwrap().0;
+            if stop_listen.load(Ordering::Acquire) {
+                return;
+            }
+            tokio::spawn(async move {
+                lightning_net_tokio::setup_inbound(
+                    peer_mgr.clone(),
+                    tcp_stream.into_std().unwrap(),
+                )
+                .await;
+            });
+        }
+    });
+
+    // Step 14: Connect and Disconnect Blocks
+    if chain_tip.is_none() {
+        chain_tip = Some(
+            init::validate_best_block_header(&mut bitcoind_client.deref())
+                .await
+                .unwrap(),
+        );
+    }
+    let channel_manager_listener = channel_manager.clone();
+    let chain_monitor_listener = chain_monitor.clone();
+    let bitcoind_block_source = bitcoind_client.clone();
+    let network = node_network.clone();
+    tokio::spawn(async move {
+        let mut derefed = bitcoind_block_source.deref();
+        let chain_poller = poll::ChainPoller::new(&mut derefed, network);
+        let chain_listener = (chain_monitor_listener, channel_manager_listener);
+        let mut spv_client = SpvClient::new(
+            chain_tip.unwrap(),
+            chain_poller,
+            &mut cache,
+            &chain_listener,
+        );
+        loop {
+            spv_client.poll_best_tip().await.unwrap();
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    });
+
+    // Step 15: Handle LDK Events
+    let channel_manager_event_listener = channel_manager.clone();
+    let keys_manager_listener = keys_manager.clone();
+    let inbound_payments: PaymentInfoStorage = Arc::new(Mutex::new(HashMap::new()));
+    let outbound_payments: PaymentInfoStorage = Arc::new(Mutex::new(HashMap::new()));
+    let inbound_pmts_for_events = inbound_payments.clone();
+    let outbound_pmts_for_events = outbound_payments.clone();
+    let bitcoind_rpc = bitcoind_client.clone();
+    let network_graph_events = network_graph.clone();
+    let handle = tokio::runtime::Handle::current();
+    let event_handler = move |event: &Event| {
+        handle.block_on(handle_ldk_events(
+            &channel_manager_event_listener,
+            &bitcoind_rpc,
+            &network_graph_events,
+            &keys_manager_listener,
+            &inbound_pmts_for_events,
+            &outbound_pmts_for_events,
+            node_network.clone(),
+            event,
+        ));
+    };
+
+    // Step 16: Initialize routing ProbabilisticScorer
+    let scorer_path = format!("{}/scorer", ldk_data_dir.clone());
+    let scorer = Arc::new(Mutex::new(file_io::read_scorer(
+        Path::new(&scorer_path),
+        Arc::clone(&network_graph),
+        Arc::clone(&logger),
+    )));
+
+    // Step 17: Create InvoicePayer
+    let router = DefaultRouter::new(
+        network_graph.clone(),
+        logger.clone(),
+        keys_manager.get_secure_random_bytes(),
+    );
+    let invoice_payer = Arc::new(InvoicePayer::new(
+        channel_manager.clone(),
+        router,
+        scorer.clone(),
+        logger.clone(),
+        event_handler,
+        payment::Retry::Timeout(Duration::from_secs(10)),
+    ));
+    //
+    // Step 19: Background Processing
+    let background_processor = BackgroundProcessor::start(
+        persister.clone(),
+        invoice_payer.clone(),
+        chain_monitor.clone(),
+        channel_manager.clone(),
+        GossipSync::p2p(gossip_sync.clone()),
+        peer_manager.clone(),
+        logger.clone(),
+        Some(scorer.clone()),
+    );
+    // Regularly reconnect to channel peers.
+    let connect_cm = Arc::clone(&channel_manager);
+    let connect_pm = Arc::clone(&peer_manager);
+    let peer_data_path = format!("{}/channel_peer_data", ldk_data_dir.clone());
+    let stop_connect = Arc::clone(&stop_listen_connect);
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        loop {
+            interval.tick().await;
+            match file_io::read_channel_peer_data(Path::new(&peer_data_path)) {
+                Ok(info) => {
+                    let peers = connect_pm.get_peer_node_ids();
+                    for node_id in connect_cm
+                        .list_channels()
+                        .iter()
+                        .map(|chan| chan.counterparty.node_id)
+                        .filter(|id| !peers.contains(id))
+                    {
+                        if stop_connect.load(Ordering::Acquire) {
+                            return;
+                        }
+                        for (pubkey, peer_addr) in info.iter() {
+                            if *pubkey == node_id {
+                                let _ = do_connect_peer(
+                                    *pubkey,
+                                    peer_addr.clone(),
+                                    Arc::clone(&connect_pm),
+                                )
+                                .await;
+                            }
+                        }
+                    }
+                }
+                Err(e) => println!("ERROR: error reading channel peer info from disk: {:?}", e),
+            }
+        }
+    });
+
+    let mut c_manager = CHANNEL_MANAGER.write().unwrap();
+    *c_manager = Some(channel_manager.clone());
+    channel_manager.clone().get_our_node_id().to_string()
+}
+pub fn get_node_id()->String{
+    let c_manager = CHANNEL_MANAGER.read().unwrap().clone().unwrap();
+    c_manager.get_our_node_id().to_string()
+}
 async fn handle_ldk_events(
     channel_manager: &Arc<ChannelManager>,
     bitcoind_client: &BitcoindClient,
@@ -816,31 +782,31 @@ async fn do_connect_peer(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::ffi::{ldk_init, BITCOIND_CLIENT, PATH};
-    use lightning::chain::chaininterface::{ConfirmationTarget, FeeEstimator};
-    use std::path::Path;
+pub fn check_rpc_init() -> bool {
+    let client = BITCOIND_CLIENT.read().unwrap().is_some();
+    client
+}
+pub fn open_channel(pub_key: String, host: String, port: u32, amt_satoshis: u64) {}
 
-    #[test]
-    fn test_init_ldk() {
-        let id = ldk_init(
-            "127.0.0.1".to_string(),
-            18443,
-            "polaruser".to_string(),
-            "polarpass".to_string(),
-            "regtest".to_string(),
-            "".to_string(),
-        );
-        let client = BITCOIND_CLIENT.read().unwrap();
-
-        assert_eq!(
-            client
-                .clone()
-                .unwrap()
-                .get_est_sat_per_1000_weight(ConfirmationTarget::Normal)
-                .to_string(),
-            "test".to_string()
-        )
+pub(crate) fn parse_peer_info(
+    peer_addr_str: String,
+    pub_key_str: String,
+) -> Result<(PublicKey, SocketAddr), std::io::Error> {
+    let peer_addr = peer_addr_str.to_socket_addrs().map(|mut r| r.next());
+    if peer_addr.is_err() || peer_addr.as_ref().unwrap().is_none() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "ERROR: couldn't parse pubkey@host:port into a socket address",
+        ));
     }
+
+    let pubkey = utils::to_compressed_pubkey(pub_key_str.as_str());
+    if pubkey.is_none() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "ERROR: unable to parse given pubkey for node",
+        ));
+    }
+
+    Ok((pubkey.unwrap(), peer_addr.unwrap().unwrap()))
 }

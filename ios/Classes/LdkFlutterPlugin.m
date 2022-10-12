@@ -1,4 +1,5 @@
 #import "LdkFlutterPlugin.h"
+#import "bindings.h"
 #if __has_include(<ldk_flutter/ldk_flutter-Swift.h>)
 #import <ldk_flutter/ldk_flutter-Swift.h>
 #else
