@@ -1,8 +1,2 @@
-
-import 'ldk_flutter_platform_interface.dart';
-
-class LdkFlutter {
-  Future<String?> getPlatformVersion() {
-    return LdkFlutterPlatform.instance.getPlatformVersion();
-  }
-}
+library ldk_flutter;
+export './src/ldk_flutter_root.dart';
