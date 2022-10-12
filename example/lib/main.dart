@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
-
-import 'package:flutter/services.dart';
 import 'package:ldk_flutter/ldk_flutter.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -16,40 +14,25 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  String _platformVersion = 'Unknown';
-  final _ldkFlutterPlugin = LdkFlutter();
+  final _rustIsolatePlugin = LdkFlutter();
 
   @override
   void initState() {
     super.initState();
-    initPlatformState();
-    test();
+    getLdk();
   }
-  test() async{
-    final init = await _ldkFlutterPlugin.getNodeId();
-    print(init);
+  getLdk() async{
+   await _rustIsolatePlugin.ldkInit(
+       host: "127.0.0.1",
+        port: 18443,
+        username: "polaruser",
+        password: "polarpass",
+        network:Network.REGTEST,
+        path:"~/Library/Developer/CoreSimulator/Devices/8AFA2EBF-F65B-446A-B731-FF811EEFD54D/data/Containers/Data/Application/9A7D9E46-E4FA-4A2D-A68F-998612BC5A7C/Documents");
   }
-  // Platform messages are asynchronous, so we initialize in an async method.
-  Future<void> initPlatformState() async {
-    String platformVersion;
-    // Platform messages may fail, so we use a try/catch PlatformException.
-    // We also handle the message potentially returning null.
-    try {
-      platformVersion = await _ldkFlutterPlugin.getPlatformVersion();
-      final init = await _ldkFlutterPlugin.checkIfInitialized();
-      print(init);
-    } on PlatformException {
-      platformVersion = 'Failed to get platform version.';
-    }
-
-    // If the widget was removed from the tree while the asynchronous platform
-    // message was in flight, we want to discard the reply rather than calling
-    // setState to update our non-existent appearance.
-    if (!mounted) return;
-
-    setState(() {
-      _platformVersion = platformVersion;
-    });
+  getDocDir() async{
+    final res = await _rustIsolatePlugin.getAppDocDirPath();
+    print(res);
   }
 
   @override
@@ -57,10 +40,17 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(
-          title: const Text('Plugin example app'),
+          title: const Text('LDK Node'),
         ),
         body: Center(
-          child: Text('Running on: $_platformVersion\n'),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              ElevatedButton(onPressed: (){
+                getDocDir();
+              }, child: Text("Get Doc Dir"))
+            ],
+          ),
         ),
       ),
     );

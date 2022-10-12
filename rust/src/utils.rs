@@ -1,6 +1,6 @@
 use bitcoin::secp256k1::PublicKey;
 use bitcoin::Network;
-
+use std::net::{SocketAddr, ToSocketAddrs};
 pub(crate) fn config_network(network: String) -> Network {
     return match network.as_str() {
         "SIGNET" => Network::Signet,
@@ -53,4 +53,12 @@ pub fn to_compressed_pubkey(hex: &str) -> Option<PublicKey> {
         Ok(pk) => Some(pk),
         Err(_) => None,
     }
+}
+pub(crate) fn parse_peer_info(
+    peer_addr_str: String,
+    pub_key_str: String,
+) -> (PublicKey, SocketAddr) {
+    let peer_addr = peer_addr_str.to_socket_addrs().map(|mut r| r.next());
+    let pubkey = to_compressed_pubkey(pub_key_str.as_str());
+   (pubkey.unwrap(), peer_addr.unwrap().unwrap())
 }

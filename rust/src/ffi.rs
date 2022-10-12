@@ -1,9 +1,6 @@
 use crate::bitcoind_client::BitcoindClient;
 use crate::file_io::FilesystemLogger;
-use crate::types::{
-    ChainMonitor, ChannelManager, HTLCStatus, InvoicePayer, MillisatAmount, NetworkGraph,
-    PaymentInfo, PaymentInfoStorage, PeerManager,
-};
+use crate::types::{ChainMonitor, ChannelManager, HTLCStatus, InvoicePayer, LdkInfo, MillisatAmount, NetworkGraph, PaymentInfo, PaymentInfoStorage, PeerManager};
 use crate::utils::config_network;
 use crate::{file_io, utils};
 use bitcoin::blockdata::constants::genesis_block;
@@ -53,6 +50,7 @@ lazy_static! {
         RwLock::new(Arc::new(KeysManager::new(&[0; 32], 0, 0)));
     static ref PATH: RwLock<String> = RwLock::new(String::new());
     static ref CHANNEL_MANAGER: RwLock<Option<Arc<ChannelManager>>> = RwLock::new(None);
+    static ref LDKINFO: RwLock<Option<LdkInfo>> = RwLock::new(None);
 }
 fn check_if_restarting(ldk_data_dir: String) -> bool {
     if let Ok(mut f) = fs::File::open(format!("{}/manager", ldk_data_dir.clone())) {
@@ -61,12 +59,30 @@ fn check_if_restarting(ldk_data_dir: String) -> bool {
         false
     }
 }
-//
-// fn init_static_variables(invoice_payer: Arc<InvoicePayer<E>>, peer_manager: Arc<PeerManager>, channel_manager: Arc<ChannelManager>, network_graph: Arc<NetworkGraph>, inbound_payments: PaymentInfoStorage, outbound_payments: PaymentInfoStorage, network: Network,){
-//
-// }
+fn set_ldk_info( channel_manager: Arc<ChannelManager>,
+                 bitcoind_client:  Arc<BitcoindClient>,
+                 network_graph: Arc<NetworkGraph>,
+                 keys_manager:  Arc<KeysManager>,
+                 inbound_payments:  PaymentInfoStorage,
+                 outbound_payments: PaymentInfoStorage,
+                 network: Network,
+                 path :String)
+{
+    let ldk_info = LdkInfo{
+        channel_manager: Some(channel_manager),
+        bitcoind_client: Some(bitcoind_client),
+        network_graph: Some(network_graph),
+        keys_manager: Some(keys_manager),
+        inbound_payments: Some(inbound_payments),
+        outbound_payments: Some(outbound_payments),
+        network: Some(network),
+        path: Some(path)
+    };
+    let mut l_info = LDKINFO.write().unwrap();
+    *l_info = Some(ldk_info);
+}
 
-fn create_keys_manager(ldk_data_dir: String) {
+fn create_keys_manager(ldk_data_dir: String) -> Arc<KeysManager> {
     let keys_seed_path = format!("{}/keys_seed", ldk_data_dir);
     let keys_seed = if let Ok(seed) = fs::read(keys_seed_path.clone()) {
         assert_eq!(seed.len(), 32);
@@ -95,10 +111,12 @@ fn create_keys_manager(ldk_data_dir: String) {
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
     let keys_manager = KeysManager::new(&keys_seed, cur.as_secs(), cur.subsec_nanos());
-    let mut keysmanager = KEYS_MANAGER.write().unwrap();
-    *keysmanager = Arc::new(keys_manager);
+    // let mut keysmanager = KEYS_MANAGER.write().unwrap();
+    // *keysmanager = Arc::new(keys_manager);
+    Arc::new(keys_manager)
 }
-pub async fn init_bitcoin_client(host: String, port: u16, username: String, password: String) {
+
+pub async fn init_bitcoin_client(host: String, port: u16, username: String, password: String)-> Arc<BitcoindClient>{
     let bitcoind_client = BitcoindClient::new(
         host.clone(),
         port,
@@ -106,11 +124,12 @@ pub async fn init_bitcoin_client(host: String, port: u16, username: String, pass
         password.clone(),
         tokio::runtime::Handle::current(),
     )
-    .await
-    .unwrap();
+        .await
+        .unwrap();
     let client = Arc::new(bitcoind_client);
-    let mut bclient = BITCOIND_CLIENT.write().unwrap();
-    *bclient = Some(client.clone());
+    // let mut bclient = BITCOIND_CLIENT.write().unwrap();
+    // *bclient = Some(client.clone());
+    client
 }
 
 pub fn init_directory(path: String) {
@@ -127,12 +146,12 @@ async fn init_channel_manager(
     keys_manager: Arc<KeysManager>,
     logger: Arc<FilesystemLogger>,
     ldk_data_dir: String,
+    bitcoind_client:Arc<BitcoindClient>
 ) -> (
     ChannelManager,
     Vec<(BlockHash, ChannelMonitor<InMemorySigner>)>,
     BlockHash,
 ) {
-    let bitcoind_client = BITCOIND_CLIENT.read().unwrap().clone().unwrap();
     let mut user_config = UserConfig::default();
     // Step 7: Read ChannelMonitor state from disk
     let mut channelmonitors: Vec<(BlockHash, ChannelMonitor<InMemorySigner>)> = persister
@@ -199,11 +218,8 @@ pub async fn ldk_init(
     let ldk_data_dir = PATH.read().unwrap().clone();
     //Initialize our bitcoind client.
     let node_network = config_network(network);
-    init_bitcoin_client(host, port, username, password).await;
-
-    let bitcoind_client = BITCOIND_CLIENT.read().unwrap().clone().unwrap();
+    let bitcoind_client =  init_bitcoin_client(host, port, username, password).await;
     let fee_estimator = bitcoind_client.clone();
-
     // Step 2: Initialize the Logger
     let logger = Arc::new(FilesystemLogger::new(ldk_data_dir.clone()));
 
@@ -223,8 +239,8 @@ pub async fn ldk_init(
     ));
 
     // Step 6: Initialize the KeysManager
-    create_keys_manager(ldk_data_dir.clone());
-    let keys_manager = KEYS_MANAGER.read().unwrap().clone();
+
+    let keys_manager = create_keys_manager(ldk_data_dir.clone());
 
     // Step 8: Initialize the ChannelManager
     let (channel_manager, mut channelmonitors, channel_manager_blockhash) = init_channel_manager(
@@ -234,8 +250,9 @@ pub async fn ldk_init(
         keys_manager.clone(),
         logger.clone(),
         ldk_data_dir.clone(),
+        bitcoind_client.clone()
     )
-    .await;
+        .await;
 
     // Step 9: Sync ChannelMonitors and ChannelManager to chain tip
     let mut chain_listener_channel_monitors = Vec::new();
@@ -269,13 +286,13 @@ pub async fn ldk_init(
         }
         chain_tip = Some(
             init::synchronize_listeners(
-                &mut bitcoind_client.deref(),
+                &mut bitcoind_client.clone().deref(),
                 node_network,
                 &mut cache,
                 chain_listeners,
             )
-            .await
-            .unwrap(),
+                .await
+                .unwrap(),
         );
     }
     // Step 10: Give ChannelMonitors to ChainMonitor
@@ -339,7 +356,7 @@ pub async fn ldk_init(
                     peer_mgr.clone(),
                     tcp_stream.into_std().unwrap(),
                 )
-                .await;
+                    .await;
             });
         }
     });
@@ -457,7 +474,7 @@ pub async fn ldk_init(
                                     peer_addr.clone(),
                                     Arc::clone(&connect_pm),
                                 )
-                                .await;
+                                    .await;
                             }
                         }
                     }
@@ -467,14 +484,66 @@ pub async fn ldk_init(
         }
     });
 
-    let mut c_manager = CHANNEL_MANAGER.write().unwrap();
-    *c_manager = Some(channel_manager.clone());
+    set_ldk_info(channel_manager.clone(),
+                 bitcoind_client.clone(),
+                 network_graph.clone(),
+                 keys_manager.clone(),
+                 inbound_payments.clone(),
+                 outbound_payments.clone(),
+                 node_network.clone(),
+                 ldk_data_dir.clone());
+    // let mut c_manager = CHANNEL_MANAGER.write().unwrap();
+    // *c_manager = Some(channel_manager.clone());
     channel_manager.clone().get_our_node_id().to_string()
 }
+
 pub fn get_node_id()->String{
-    let c_manager = CHANNEL_MANAGER.read().unwrap().clone().unwrap();
-    c_manager.get_our_node_id().to_string()
+    let ldk_info = LDKINFO.read().unwrap().clone().unwrap();
+    ldk_info.channel_manager.unwrap().clone().get_our_node_id().to_string()
 }
+
+async fn do_connect_peer(
+    pubkey: PublicKey,
+    peer_addr: SocketAddr,
+    peer_manager: Arc<PeerManager>,
+) -> Result<(), ()> {
+    match lightning_net_tokio::connect_outbound(Arc::clone(&peer_manager), pubkey, peer_addr).await
+    {
+        Some(connection_closed_future) => {
+            let mut connection_closed_future = Box::pin(connection_closed_future);
+            loop {
+                match futures::poll!(&mut connection_closed_future) {
+                    std::task::Poll::Ready(_) => {
+                        return Err(());
+                    }
+                    std::task::Poll::Pending => {}
+                }
+                // Avoid blocking the tokio context by sleeping a bit
+                match peer_manager
+                    .get_peer_node_ids()
+                    .iter()
+                    .find(|id| **id == pubkey)
+                {
+                    Some(_) => return Ok(()),
+                    None => tokio::time::sleep(Duration::from_millis(10)).await,
+                }
+            }
+        }
+        None => Err(()),
+    }
+}
+
+pub fn check_rpc_init() -> bool {
+    let ldk_info = LDKINFO.read().unwrap().clone().unwrap();
+    ldk_info.bitcoind_client.is_some()
+}
+
+pub fn open_channel(pub_key: String, host: String, port: u32, amt_satoshis: u64) {
+    let peer_addr_str = format!("{host}:{port}");
+    let (pubkey, peer_addr) = utils::parse_peer_info(peer_addr_str, host);
+
+}
+
 async fn handle_ldk_events(
     channel_manager: &Arc<ChannelManager>,
     bitcoind_client: &BitcoindClient,
@@ -504,8 +573,8 @@ async fn handle_ldk_events(
                     Network::Signet => bitcoin_bech32::constants::Network::Signet,
                 },
             )
-            .expect("Lightning funding tx should always be to a SegWit output")
-            .to_address();
+                .expect("Lightning funding tx should always be to a SegWit output")
+                .to_address();
             let mut outputs = vec![HashMap::with_capacity(1)];
             outputs[0].insert(addr, *channel_value_satoshis as f64 / 100_000_000.0);
             let raw_tx = bitcoind_client.create_raw_transaction(outputs).await;
@@ -749,64 +818,4 @@ async fn handle_ldk_events(
             // the funding transaction either confirms, or this event is generated.
         }
     }
-}
-
-async fn do_connect_peer(
-    pubkey: PublicKey,
-    peer_addr: SocketAddr,
-    peer_manager: Arc<PeerManager>,
-) -> Result<(), ()> {
-    match lightning_net_tokio::connect_outbound(Arc::clone(&peer_manager), pubkey, peer_addr).await
-    {
-        Some(connection_closed_future) => {
-            let mut connection_closed_future = Box::pin(connection_closed_future);
-            loop {
-                match futures::poll!(&mut connection_closed_future) {
-                    std::task::Poll::Ready(_) => {
-                        return Err(());
-                    }
-                    std::task::Poll::Pending => {}
-                }
-                // Avoid blocking the tokio context by sleeping a bit
-                match peer_manager
-                    .get_peer_node_ids()
-                    .iter()
-                    .find(|id| **id == pubkey)
-                {
-                    Some(_) => return Ok(()),
-                    None => tokio::time::sleep(Duration::from_millis(10)).await,
-                }
-            }
-        }
-        None => Err(()),
-    }
-}
-
-pub fn check_rpc_init() -> bool {
-    let client = BITCOIND_CLIENT.read().unwrap().is_some();
-    client
-}
-pub fn open_channel(pub_key: String, host: String, port: u32, amt_satoshis: u64) {}
-
-pub(crate) fn parse_peer_info(
-    peer_addr_str: String,
-    pub_key_str: String,
-) -> Result<(PublicKey, SocketAddr), std::io::Error> {
-    let peer_addr = peer_addr_str.to_socket_addrs().map(|mut r| r.next());
-    if peer_addr.is_err() || peer_addr.as_ref().unwrap().is_none() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "ERROR: couldn't parse pubkey@host:port into a socket address",
-        ));
-    }
-
-    let pubkey = utils::to_compressed_pubkey(pub_key_str.as_str());
-    if pubkey.is_none() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "ERROR: unable to parse given pubkey for node",
-        ));
-    }
-
-    Ok((pubkey.unwrap(), peer_addr.unwrap().unwrap()))
 }

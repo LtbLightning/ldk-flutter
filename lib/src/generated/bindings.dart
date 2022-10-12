@@ -20,6 +20,17 @@ abstract class Rust {
 
   FlutterRustBridgeTaskConstMeta get kGetNodeIdConstMeta;
 
+  Future<String> ldkLoadOrInit(
+      {required String username,
+      required String password,
+      required String host,
+      required String network,
+      required String path,
+      required int port,
+      dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kLdkLoadOrInitConstMeta;
+
   Future<int> loadClient(
       {required String username,
       required String password,
@@ -66,6 +77,35 @@ class RustImpl extends FlutterRustBridgeBase<RustWire> implements Rust {
       const FlutterRustBridgeTaskConstMeta(
         debugName: "get_node_id",
         argNames: [],
+      );
+
+  Future<String> ldkLoadOrInit(
+          {required String username,
+          required String password,
+          required String host,
+          required String network,
+          required String path,
+          required int port,
+          dynamic hint}) =>
+      executeNormal(FlutterRustBridgeTask(
+        callFfi: (port_) => inner.wire_ldk_load_or_init(
+            port_,
+            _api2wire_String(username),
+            _api2wire_String(password),
+            _api2wire_String(host),
+            _api2wire_String(network),
+            _api2wire_String(path),
+            _api2wire_u16(port)),
+        parseSuccessData: _wire2api_String,
+        constMeta: kLdkLoadOrInitConstMeta,
+        argValues: [username, password, host, network, path, port],
+        hint: hint,
+      ));
+
+  FlutterRustBridgeTaskConstMeta get kLdkLoadOrInitConstMeta =>
+      const FlutterRustBridgeTaskConstMeta(
+        debugName: "ldk_load_or_init",
+        argNames: ["username", "password", "host", "network", "path", "port"],
       );
 
   Future<int> loadClient(
@@ -199,6 +239,46 @@ class RustWire implements FlutterRustBridgeWireBase {
           'wire_get_node_id');
   late final _wire_get_node_id =
       _wire_get_node_idPtr.asFunction<void Function(int)>();
+
+  void wire_ldk_load_or_init(
+    int port_,
+    ffi.Pointer<wire_uint_8_list> username,
+    ffi.Pointer<wire_uint_8_list> password,
+    ffi.Pointer<wire_uint_8_list> host,
+    ffi.Pointer<wire_uint_8_list> network,
+    ffi.Pointer<wire_uint_8_list> path,
+    int port,
+  ) {
+    return _wire_ldk_load_or_init(
+      port_,
+      username,
+      password,
+      host,
+      network,
+      path,
+      port,
+    );
+  }
+
+  late final _wire_ldk_load_or_initPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+              ffi.Int64,
+              ffi.Pointer<wire_uint_8_list>,
+              ffi.Pointer<wire_uint_8_list>,
+              ffi.Pointer<wire_uint_8_list>,
+              ffi.Pointer<wire_uint_8_list>,
+              ffi.Pointer<wire_uint_8_list>,
+              ffi.Uint16)>>('wire_ldk_load_or_init');
+  late final _wire_ldk_load_or_init = _wire_ldk_load_or_initPtr.asFunction<
+      void Function(
+          int,
+          ffi.Pointer<wire_uint_8_list>,
+          ffi.Pointer<wire_uint_8_list>,
+          ffi.Pointer<wire_uint_8_list>,
+          ffi.Pointer<wire_uint_8_list>,
+          ffi.Pointer<wire_uint_8_list>,
+          int)>();
 
   void wire_load_client(
     int port_,

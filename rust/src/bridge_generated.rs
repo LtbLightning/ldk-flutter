@@ -42,6 +42,43 @@ pub extern "C" fn wire_get_node_id(port_: i64) {
 }
 
 #[no_mangle]
+pub extern "C" fn wire_ldk_load_or_init(
+    port_: i64,
+    username: *mut wire_uint_8_list,
+    password: *mut wire_uint_8_list,
+    host: *mut wire_uint_8_list,
+    network: *mut wire_uint_8_list,
+    path: *mut wire_uint_8_list,
+    port: u16,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap(
+        WrapInfo {
+            debug_name: "ldk_load_or_init",
+            port: Some(port_),
+            mode: FfiCallMode::Normal,
+        },
+        move || {
+            let api_username = username.wire2api();
+            let api_password = password.wire2api();
+            let api_host = host.wire2api();
+            let api_network = network.wire2api();
+            let api_path = path.wire2api();
+            let api_port = port.wire2api();
+            move |task_callback| {
+                ldk_load_or_init(
+                    api_username,
+                    api_password,
+                    api_host,
+                    api_network,
+                    api_path,
+                    api_port,
+                )
+            }
+        },
+    )
+}
+
+#[no_mangle]
 pub extern "C" fn wire_load_client(
     port_: i64,
     username: *mut wire_uint_8_list,

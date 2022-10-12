@@ -1,3 +1,4 @@
+use std::ffi::CString;
 use crate::ffi;
 use allo_isolate::Isolate;
 use lazy_static::lazy_static;
@@ -58,6 +59,17 @@ pub fn check_rpc_init() -> bool {
 pub fn get_node_id()->String{
     ffi::get_node_id()
 }
+#[tokio::main(flavor = "current_thread")]
+pub async fn ldk_load_or_init(username: String,
+                 password: String,
+                 host: String,
+                 network: String,
+                 path: String,
+                 port: u16,) -> anyhow::Result<String> {
+    let result = ffi::ldk_init(host, port, username, password, network, path).await;
+    Ok(result)
+}
+
 pub fn load_client(
     username: String,
     password: String,
@@ -66,7 +78,8 @@ pub fn load_client(
     network: String,
     path: String,
     port: u16,
-) -> u32 {
+) -> u32
+{
     // get a ref to the runtime
     let rt = runtime!();
     rt.block_on(async {
@@ -78,6 +91,5 @@ pub fn load_client(
         // no need to convert anything :)
         isolate.post(result);
     });
-
     1
 }
