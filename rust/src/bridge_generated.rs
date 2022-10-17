@@ -44,14 +44,14 @@ pub extern "C" fn wire_start_ldk(
             let api_path = path.wire2api();
             let api_port = port.wire2api();
             move |task_callback| {
-                Ok(start_ldk(
+                start_ldk(
                     api_username,
                     api_password,
                     api_host,
                     api_node_network,
                     api_path,
                     api_port,
-                ))
+                )
             }
         },
     )

@@ -23,10 +23,11 @@ class _MyAppState extends State<MyApp> {
     getLdk();
   }
 
+
   openChannel() async{
     await _ldkRust.openChannel(
-        peerPubKey: "03aa32db8e7b1f4012b3a994d55abecb57ddeb634e7d4fde1fd32d2447ca86d1cb",
-        port: 9838,
+        peerPubKey: "02303809f3321133163f0f59dfcc9752764d24997358e3e80418aeaf742bc24be7",
+        port: 9735,
         host: "127.0.0.1",
         amountInSats: 100000,
         isPublic: false);
@@ -49,7 +50,6 @@ class _MyAppState extends State<MyApp> {
   }
  Future<String> getDocDir() async{
     final res = await _ldkRust.getAppDocDirPath();
-    print(res);
     return res;
   }
   getNodeInfo() async{

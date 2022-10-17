@@ -2,6 +2,8 @@ use bitcoin::hashes::hex::FromHex;
 use bitcoin::{BlockHash, Network};
 use lightning_block_sync::http::JsonResponse;
 use std::convert::TryInto;
+use flutter_rust_bridge::handler;
+use flutter_rust_bridge::handler::{Error, ErrorHandler, ReportDartErrorHandler};
 
 pub struct FundedTx {
 	pub changepos: i64,

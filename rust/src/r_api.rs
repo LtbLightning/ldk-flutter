@@ -8,7 +8,6 @@ use bitcoin::network::constants::Network;
 use bitcoin::secp256k1::Secp256k1;
 use bitcoin::{BlockHash};
 use crate::{hex_utils, serialize};
-use bitcoin_bech32::WitnessProgram;
 use lightning::chain;
 use lightning::chain::chaininterface::{BroadcasterInterface, ConfirmationTarget, FeeEstimator};
 use lightning::chain::chainmonitor;
@@ -53,6 +52,7 @@ use lightning::routing::router;
 use secp256k1::PublicKey;
 use crate::file_io;
 use crate::types::{ChainMonitor, ChannelInfo, ChannelManager, HTLCStatus, InvoicePayer, LdkInfo, LdkNodeInfo, MillisatAmount, NetworkGraph, PaymentInfo, PaymentInfoStorage, PeerManager};
+use anyhow;
 lazy_static! {
     static ref LDKINFO: RwLock<Option<LdkInfo>> = RwLock::new(None);
 }
@@ -241,14 +241,43 @@ async fn handle_ldk_events(
 }
 
 #[tokio::main(flavor = "current_thread")]
-pub async fn start_ldk(
+ async fn start_ldk_(
     username: String,
     password: String,
     host: String,
     node_network: String,
     path: String,
     port: u16,
-) -> String
+) -> anyhow::Result<String> {
+    let network = serialize::config_network(node_network);
+    let ldk_data_dir = format!("{}/.ldk", path);
+    fs::create_dir_all(ldk_data_dir.clone()).unwrap();
+    // Initialize our bitcoind client.
+    let _client = BitcoindClient::new(
+        host,
+        port,
+        username,
+        password,
+        tokio::runtime::Handle::current(),
+    )
+        .await;
+    match _client {
+        Ok(e) => {
+            let bitcoind_client = Arc::new(e);
+            Ok( bitcoind_client.get_new_address().await.to_string())}
+        Err(e) => panic!("Bitcoind Client Error : {}",e)
+    }
+}
+
+#[tokio::main(flavor = "current_thread")]
+ pub  async fn start_ldk(
+    username: String,
+    password: String,
+    host: String,
+    node_network: String,
+    path: String,
+    port: u16,
+) -> anyhow::Result<String>
 {
     let network = serialize::config_network(node_network);
     let ldk_data_dir = format!("{}/.ldk", path);
@@ -617,7 +646,7 @@ pub async fn start_ldk(
     // peer_manager.disconnect_all_peers();
     // // Stop the background processor.
     // background_processor.stop().unwrap();
-    channel_manager.clone().get_our_node_id().to_string()
+    Ok(channel_manager.clone().get_our_node_id().to_string())
 }
 
 pub fn get_node_info() ->LdkNodeInfo{
@@ -731,7 +760,23 @@ pub fn force_close_channel(
         Err(e) => println!("ERROR: failed to force-close channel: {:?}", e),
     }
 }
+#[cfg(test)]
+mod tests {
+    use bitcoin::Error::Network;
+    use crate::r_api::start_ldk;
 
+
+    #[actix_rt::test]
+    async fn  _init_node(){
+        let x = start_ldk(
+            "polaruser".to_string(),
+            "polarpass".to_string(),
+               "127.0.0.1".to_string(),
+            "REGTEST".to_string() ,
+                "./".to_string(), 18443).await;
+        assert_eq!(x, "false")
+    }
+}
 
 
 
