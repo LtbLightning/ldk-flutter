@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ldk_flutter/ldk_flutter.dart';
 import 'dart:io' show Platform;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
@@ -14,48 +15,73 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  final _ldkRust = LdkFlutter();
+  final ldkFlutter = LdkFlutter();
 
   @override
   void initState() {
     super.initState();
-
-    getLdk();
+    startLdk();
   }
 
-  Future<String> getDocDir() async {
-    final res = await _ldkRust.getAppDocDirPath();
+  Future<String> getDir() async {
+    final res = await ldkFlutter
+        .getDirPath(DirectoryType.ApplicationDocumentsDirectory);
     print(res);
     return res;
   }
 
-  getLdk() async {
-    final dir = await getDocDir();
-    await _ldkRust.ldkInit(
-        host: Platform.isAndroid? "10.0.2.2":"127.0.0.1",
+  startLdk() async {
+    final dir = await getDir();
+    await ldkFlutter.ldkInit(
+        host: Platform.isAndroid ? "10.0.2.2" : "127.0.0.1",
         port: 18443,
         username: "polaruser",
         password: "polarpass",
-        pubKey: "02636a5c5d92f05e93678f7da94d927789ea4e86ab29b7bf0be14ce09a52e8654f",
-        port2: 9836,
-        amount: 10000,
         network: Network.REGTEST,
         path: dir);
   }
 
-  // openChannel() async {
-  //  final res =  await _ldkRust.openChannel(
-  //       peerPubKey: "02636a5c5d92f05e93678f7da94d927789ea4e86ab29b7bf0be14ce09a52e8654f",
-  //       port: 9836,
-  //      amountInSats: 10000,
-  //       host: Platform.isAndroid? "10.0.2.2":"127.0.0.1",
-  //
-  //       isPublic: true);
-  //  print(res);
-  // }
+  getNodeInfo() async {
+    final res = await ldkFlutter.getNodeInfo();
+    print("Local Balance ${res.localBalanceMsat}");
+    print("Node Pub Key ${res.nodePubKey}");
+    print("No:of channels ${res.numChannels}");
+    print("No:of usable channels ${res.numUsableChannels}");
+    print("No:of peers ${res.numPeers}");
+  }
+
+  // For testing replace the peerPubKey, port and host with your own
+  connectPeer() async {
+    final res = await ldkFlutter.connectPeer(
+        peerPubKey:
+            "02e837c5c65414be833a627043c44b69ec2061298b984323e512297f142c3fae3c",
+        port: 9738,
+        // Please change the following line to host: "127.0.0.1" if you are not using an emulator,
+        host: Platform.isAndroid ? "10.0.2.2" : "127.0.0.1");
+    print(res);
+  }
+
+  getPeers() async {
+    final res = await ldkFlutter.listPeers();
+    res.forEach((e) {
+      print(e);
+    });
+  }
+
+  openChannel() async {
+    final res = await ldkFlutter.openChannel(
+        peerPubKey:
+            "02636a5c5d92f05e93678f7da94d927789ea4e86ab29b7bf0be14ce09a52e8654f",
+        port: 9836,
+        amountInSats: 10000,
+        // Please change the following line to host: "127.0.0.1" if you are not using an emulator,
+        host: Platform.isAndroid ? "10.0.2.2" : "127.0.0.1",
+        isPublic: true);
+    print(res);
+  }
 
   listChannels() async {
-    final res = await _ldkRust.getAllChannels();
+    final res = await ldkFlutter.listChannels();
     for (var e in res) {
       print("Chanel Id ${e.channelId}");
       print("Balance ${e.localBalanceMsat}");
@@ -67,23 +93,12 @@ class _MyAppState extends State<MyApp> {
       print("is public  ${e.public}");
     }
   }
- getPeers() async {
-    final res = await _ldkRust.getAllPeer();
-    res.forEach((element) {print(element);});
-  }
 
-  // closeChannel() async {
-  //   final res = await _ldkRust.closeChannel(channelId, peerPubKey);
-  //   res.forEach((element) {print(element);});
-  // }
-
-  getNodeInfo() async {
-    final res = await _ldkRust.getNodeInfo();
-    print("Local Balance ${res.localBalanceMsat}");
-    print("Node Pub Key ${res.nodePubKey}");
-    print("No:of channels ${res.numChannels}");
-    print("No:of usable channels ${res.numUsableChannels}");
-    print("No:of peers ${res.numPeers}");
+  closeChannel() async {
+    //Replace channel id with yours
+    await ldkFlutter.closeChannel(
+        "f88a2f73032922f45c7724b75595de4a9113b99d0808ce62f600022d83922fe7",
+        "02636a5c5d92f05e93678f7da94d927789ea4e86ab29b7bf0be14ce09a52e8654f");
   }
 
   @override
@@ -99,14 +114,29 @@ class _MyAppState extends State<MyApp> {
             children: [
               TextButton(
                   onPressed: () {
-                    getDocDir();
+                    getDir();
                   },
                   child: Text("Get Doc Dir")),
-              // TextButton(
-              //     onPressed: () {
-              //       openChannel();
-              //     },
-              //     child: Text("Open Channel")),
+              TextButton(
+                  onPressed: () {
+                    getNodeInfo();
+                  },
+                  child: Text("Get Node Info")),
+              TextButton(
+                  onPressed: () {
+                    connectPeer();
+                  },
+                  child: Text("Connect Peer")),
+              TextButton(
+                  onPressed: () {
+                    getPeers();
+                  },
+                  child: Text("List Peers")),
+              TextButton(
+                  onPressed: () {
+                    openChannel();
+                  },
+                  child: Text("Open Channel")),
               TextButton(
                   onPressed: () {
                     listChannels();
@@ -114,14 +144,9 @@ class _MyAppState extends State<MyApp> {
                   child: Text("List Channels")),
               TextButton(
                   onPressed: () {
-                    getPeers();
+                    closeChannel();
                   },
-                  child: Text("List Peeers")),
-              TextButton(
-                  onPressed: () {
-                    getNodeInfo();
-                  },
-                  child: Text("Get Node Info"))
+                  child: Text("Close Channel")),
             ],
           ),
         ),

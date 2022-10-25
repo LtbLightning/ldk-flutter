@@ -23,6 +23,34 @@ use crate::utils::types::LdkNodeInfo;
 
 // Section: wire functions
 
+fn wire_connect_peer_impl(
+    port_: MessagePort,
+    pub_key_str: impl Wire2Api<String> + UnwindSafe,
+    peer_add_str: impl Wire2Api<String> + UnwindSafe,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap(
+        WrapInfo {
+            debug_name: "connect_peer",
+            port: Some(port_),
+            mode: FfiCallMode::Normal,
+        },
+        move || {
+            let api_pub_key_str = pub_key_str.wire2api();
+            let api_peer_add_str = peer_add_str.wire2api();
+            move |task_callback| Ok(connect_peer(api_pub_key_str, api_peer_add_str))
+        },
+    )
+}
+fn wire_list_peers_impl(port_: MessagePort) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap(
+        WrapInfo {
+            debug_name: "list_peers",
+            port: Some(port_),
+            mode: FfiCallMode::Normal,
+        },
+        move || move |task_callback| Ok(list_peers()),
+    )
+}
 fn wire_get_node_info_impl(port_: MessagePort) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap(
         WrapInfo {
@@ -72,16 +100,6 @@ fn wire_list_channels_impl(port_: MessagePort) {
         move || move |task_callback| Ok(list_channels()),
     )
 }
-fn wire_list_peers_impl(port_: MessagePort) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap(
-        WrapInfo {
-            debug_name: "list_peers",
-            port: Some(port_),
-            mode: FfiCallMode::Normal,
-        },
-        move || move |task_callback| Ok(list_peers()),
-    )
-}
 fn wire_close_channel_impl(
     port_: MessagePort,
     channel_id_str: impl Wire2Api<String> + UnwindSafe,
@@ -118,21 +136,18 @@ fn wire_force_close_channel_impl(
         },
     )
 }
-fn wire_start_ldk_and_open_channel_impl(
+fn wire_start_ldk_impl(
     port_: MessagePort,
     username: impl Wire2Api<String> + UnwindSafe,
     password: impl Wire2Api<String> + UnwindSafe,
     host: impl Wire2Api<String> + UnwindSafe,
     node_network: impl Wire2Api<Network> + UnwindSafe,
-    pub_key: impl Wire2Api<String> + UnwindSafe,
-    amount: impl Wire2Api<u64> + UnwindSafe,
     path: impl Wire2Api<String> + UnwindSafe,
     port: impl Wire2Api<u16> + UnwindSafe,
-    port2: impl Wire2Api<u16> + UnwindSafe,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap(
         WrapInfo {
-            debug_name: "start_ldk_and_open_channel",
+            debug_name: "start_ldk",
             port: Some(port_),
             mode: FfiCallMode::Normal,
         },
@@ -141,22 +156,16 @@ fn wire_start_ldk_and_open_channel_impl(
             let api_password = password.wire2api();
             let api_host = host.wire2api();
             let api_node_network = node_network.wire2api();
-            let api_pub_key = pub_key.wire2api();
-            let api_amount = amount.wire2api();
             let api_path = path.wire2api();
             let api_port = port.wire2api();
-            let api_port2 = port2.wire2api();
             move |task_callback| {
-                start_ldk_and_open_channel(
+                start_ldk(
                     api_username,
                     api_password,
                     api_host,
                     api_node_network,
-                    api_pub_key,
-                    api_amount,
                     api_path,
                     api_port,
-                    api_port2,
                 )
             }
         },

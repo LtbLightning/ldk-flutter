@@ -2,6 +2,20 @@ use super::*;
 // Section: wire functions
 
 #[no_mangle]
+pub extern "C" fn wire_connect_peer(
+    port_: i64,
+    pub_key_str: *mut wire_uint_8_list,
+    peer_add_str: *mut wire_uint_8_list,
+) {
+    wire_connect_peer_impl(port_, pub_key_str, peer_add_str)
+}
+
+#[no_mangle]
+pub extern "C" fn wire_list_peers(port_: i64) {
+    wire_list_peers_impl(port_)
+}
+
+#[no_mangle]
 pub extern "C" fn wire_get_node_info(port_: i64) {
     wire_get_node_info_impl(port_)
 }
@@ -23,11 +37,6 @@ pub extern "C" fn wire_list_channels(port_: i64) {
 }
 
 #[no_mangle]
-pub extern "C" fn wire_list_peers(port_: i64) {
-    wire_list_peers_impl(port_)
-}
-
-#[no_mangle]
 pub extern "C" fn wire_close_channel(
     port_: i64,
     channel_id_str: *mut wire_uint_8_list,
@@ -46,30 +55,16 @@ pub extern "C" fn wire_force_close_channel(
 }
 
 #[no_mangle]
-pub extern "C" fn wire_start_ldk_and_open_channel(
+pub extern "C" fn wire_start_ldk(
     port_: i64,
     username: *mut wire_uint_8_list,
     password: *mut wire_uint_8_list,
     host: *mut wire_uint_8_list,
     node_network: i32,
-    pub_key: *mut wire_uint_8_list,
-    amount: u64,
     path: *mut wire_uint_8_list,
     port: u16,
-    port2: u16,
 ) {
-    wire_start_ldk_and_open_channel_impl(
-        port_,
-        username,
-        password,
-        host,
-        node_network,
-        pub_key,
-        amount,
-        path,
-        port,
-        port2,
-    )
+    wire_start_ldk_impl(port_, username, password, host, node_network, path, port)
 }
 
 // Section: allocate functions
