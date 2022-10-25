@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_rust_bridge: ^1.6.1
+  flutter_rust_bridge: ^1.49.0
   ffi: ^2.0.1
   freezed_annotation: ^2.1.0
   freezed: ^2.1.0+1
@@ -22,13 +22,9 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^2.0.0
   build_runner: ^2.2.0
-  ffigen: ^6.1.2
+  ffigen: ^6.0.1
 
-#ffigen:
-#  output: 'lib/src/generated/bindings.dart'
-#  headers:
-#    entry-points:
-#      - 'ios/Classes/lightning.h'
+
 flutter:
   # This section identifies this Flutter project as a plugin project.
   # The 'pluginClass' specifies the class (in Java, Kotlin, Swift, Objective-C, etc.)
