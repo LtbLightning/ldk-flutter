@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
+import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
 import 'package:ldk_flutter/ldk_flutter.dart';
 import 'package:ldk_flutter/src/utils/exceptions.dart';
 import 'package:path_provider/path_provider.dart';
@@ -24,7 +25,7 @@ class LdkFlutter {
         username: username,
         password: password,
         network: network,
-        path: path ?? "~/Library/Developer/CoreSimulator/Devices/8AFA2EBF-F65B-446A-B731-FF811EEFD54D/data/Containers/Data/Application/9A7D9E46-E4FA-4A2D-A68F-998612BC5A7C/Documents" ,
+        path: path.toString(),
         isolatePort: receivePort.sendPort);
     await Isolate.spawn(_ldkInit, args);
     receivePort.listen(( message) {
@@ -33,16 +34,20 @@ class LdkFlutter {
   }
 
   _ldkInit( LdkNodeArgs node) async {
-    print("Creating LDK Node......");
-    final res = await  loaderApi.startLdk(
-        host: node.host,
-        port: node.port,
-        username: node.username,
-        password: node.password,
-        nodeNetwork:node.network.name.toString(),
-        path: node.path
-    );
-    node.isolatePort.send(res);
+    try{
+      print("Creating LDK Node......");
+      final res = await  loaderApi.startLdk(
+          host: node.host,
+          port: node.port,
+          username: node.username,
+          password: node.password,
+          nodeNetwork:node.network.name.toString(),
+          path: node.path
+      );
+      node.isolatePort.send(res);
+    } on FfiException catch (e){
+      print(e.toString());
+    }
   }
   Future<LdkNodeInfo> getNodeInfo() async {
     final res = await loaderApi.getNodeInfo();
