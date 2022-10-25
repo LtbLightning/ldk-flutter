@@ -1,0 +1,9 @@
+
+enum DirectoryType{
+  ApplicationDocumentsDirectory,
+  ApplicationSupportDirectory,
+}
+
+
+
+

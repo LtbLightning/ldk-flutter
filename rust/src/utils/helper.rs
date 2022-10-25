@@ -1,12 +1,17 @@
 use std::{ io};
+use std::collections::HashMap;
 use std::io::Write;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
 use std::time::Duration;
+use bitcoin::consensus::encode;
 use bitcoin::secp256k1::PublicKey;
 use lightning::chain::keysinterface::KeysManager;
 use crate::core::client::BitcoindClient;
 use bitcoin::secp256k1::Secp256k1;
+use bitcoin::Transaction;
+use bitcoin::Network;
+use bitcoin_bech32::WitnessProgram;
 use lightning::chain::chaininterface::{BroadcasterInterface, ConfirmationTarget, FeeEstimator};
 use lightning::routing::gossip::NodeId;
 use lightning::util::errors::APIError as AError;
@@ -118,12 +123,63 @@ pub(crate) async fn handle_ldk_events(
     channel_manager: &Arc<ChannelManager>,
     bitcoind_client: &BitcoindClient,
     network_graph: &NetworkGraph,
+    network: Network,
     keys_manager: &KeysManager,
     inbound_payments: &PaymentInfoStorage,
     outbound_payments: &PaymentInfoStorage,
     event: &Event,
 ) {
+
     match event {
+        Event::FundingGenerationReady {
+            temporary_channel_id,
+            counterparty_node_id,
+            channel_value_satoshis,
+            output_script,
+            ..
+        } => {
+
+            // Construct the raw transaction with one output, that is paid the amount of the
+            // channel.
+            let addr = WitnessProgram::from_scriptpubkey(
+                &output_script[..],
+                match network {
+                    Network::Bitcoin => bitcoin_bech32::constants::Network::Bitcoin,
+                    Network::Testnet => bitcoin_bech32::constants::Network::Testnet,
+                    Network::Regtest => bitcoin_bech32::constants::Network::Regtest,
+                    Network::Signet => bitcoin_bech32::constants::Network::Signet,
+                },
+            )
+                .expect("Lightning funding tx should always be to a SegWit output")
+                .to_address();
+            let mut outputs = vec![HashMap::with_capacity(1)];
+            outputs[0].insert(addr, *channel_value_satoshis as f64 / 100_000_000.0);
+            let raw_tx = bitcoind_client.create_raw_transaction(outputs).await;
+
+            // Have your wallet put the inputs into the transaction such that the output is
+            // satisfied.
+            let funded_tx = bitcoind_client.fund_raw_transaction(raw_tx).await;
+
+            // Sign the final funding transaction and broadcast it.
+            let signed_tx = bitcoind_client.sign_raw_transaction_with_wallet(funded_tx.hex).await;
+            assert_eq!(signed_tx.complete, true);
+            let final_tx: Transaction =
+                encode::deserialize(&hex_utils::to_vec(&signed_tx.hex).unwrap()).unwrap();
+            // Give the funding transaction back to LDK for opening the channel.
+            if channel_manager
+                .funding_transaction_generated(
+                    &temporary_channel_id,
+                    counterparty_node_id,
+                    final_tx,
+                )
+                .is_err()
+            {
+                println!(
+                    "\nERROR: Channel went away before we could fund it. The peer disconnected or refused the channel.");
+                print!("> ");
+                io::stdout().flush().unwrap();
+            }
+        }
         Event::PaymentReceived {
             payment_hash,
             purpose,

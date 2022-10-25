@@ -14,7 +14,7 @@ A Flutter version of the Lightning Development Kit (https://lightningdevkit.org/
 ### Flutter
 
 * Flutter version :  3.0 or higher
-* Dart version    :  2.17.1 or higher
+* Dart version    :  2.18.2 or higher
 
 ### Android
 
@@ -41,10 +41,6 @@ ldk-flutter:
       ref: main
 ```
 
-## Building Binary Files
-```
-Please re-built your app in an android device or an emulator, after including the dependency in your pubspec.yaml, to build the necessary files.
-```
 
 ### Configuring iOS
 

@@ -10,6 +10,7 @@ use lightning_invoice::payment::{Payer};
 use lightning_invoice::{ payment};
 use std::{fs};
 use std::collections::HashMap;
+use std::fmt::format;
 use std::fs::File;
 use std::io::{ Write};
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -69,26 +70,7 @@ fn set_ldk_info(
     let mut l_info = LDKINFO.write().unwrap();
     *l_info = Some(ldk_info);
 }
-
- async fn connect_peer_if_necessary(
-    pubkey: PublicKey,
-    peer_addr: SocketAddr,
-    peer_manager: Arc<PeerManager>,
-) -> Result<(), ()>
- {
-    for node_pubkey in peer_manager.get_peer_node_ids() {
-        if node_pubkey == pubkey {
-            return Ok(());
-        }
-    }
-    let res = do_connect_peer(pubkey, peer_addr, peer_manager).await;
-    if res.is_err() {
-        println!("ERROR: failed to connect to peer");
-    }
-    res
-}
-
- async fn do_connect_peer(
+async fn do_connect_peer(
     pubkey: PublicKey,
     peer_addr: SocketAddr,
     peer_manager: Arc<PeerManager>,
@@ -100,7 +82,7 @@ fn set_ldk_info(
             loop {
                 match futures::poll!(&mut connection_closed_future) {
                     std::task::Poll::Ready(_) => {
-                        return Err(());
+                        return panic!("ERROR: Peer disconnected before handshake completed");;
                     }
                     std::task::Poll::Pending => {}
                 }
@@ -118,6 +100,54 @@ fn set_ldk_info(
         None => Err(()),
     }
 }
+#[tokio::main(flavor = "current_thread")]
+pub async fn connect_peer(pub_key_str: String, peer_add_str: String,
+) -> String{
+    let ldk_info = LDKINFO.read().unwrap().clone().unwrap();
+    let peer_manager = ldk_info.peer_manager.unwrap().clone();
+    let peer_addr = peer_add_str
+        .to_socket_addrs()
+        .map(|mut r| r.next())
+        .unwrap()
+        .unwrap();
+    let pubkey = hex_utils::to_compressed_pubkey(&pub_key_str).unwrap();
+    let res = do_connect_peer(pubkey, peer_addr, peer_manager).await;
+    return if res.is_err() {
+        "ERROR: failed to connect to peer".to_string()
+    } else {
+        format!("Successfully connected to {}", pubkey.to_string())
+    }
+}
+
+pub fn list_peers()-> Vec<String>{
+    let ldk_info = LDKINFO.read().unwrap().clone().unwrap();
+    let peer_manager = ldk_info.peer_manager.unwrap().clone();
+    let mut peers:Vec<String> = Vec::new();
+    for pub_key in peer_manager.get_peer_node_ids() {
+        peers.push(pub_key.to_string());
+    }
+    peers
+}
+
+async fn connect_peer_if_not_connected(
+    pubkey: PublicKey,
+    peer_addr: SocketAddr,
+    peer_manager: Arc<PeerManager>,
+) -> Result<(), ()>
+{
+    for node_pubkey in peer_manager.get_peer_node_ids() {
+        if node_pubkey == pubkey {
+            return Ok(());
+        }
+    }
+    let res = do_connect_peer(pubkey, peer_addr, peer_manager).await;
+    if res.is_err() {
+        println!("ERROR: failed to connect to peer");
+    }
+    res
+}
+
+
 pub fn get_node_info() -> LdkNodeInfo{
     let ldk_info = LDKINFO.read().unwrap().clone().unwrap();
     let channel_manager = ldk_info.channel_manager.unwrap().clone();
@@ -132,7 +162,7 @@ pub fn get_node_info() -> LdkNodeInfo{
 }
 
 #[tokio::main(flavor = "current_thread")]
- pub async fn open_channel(pub_key_str: String, peer_add_str: String, amount: u64, is_public:bool) -> String {
+pub async fn open_channel(pub_key_str: String, peer_add_str: String, amount: u64, is_public:bool) -> String {
     let ldk_info = LDKINFO.read().unwrap().clone().unwrap();
     let channel_manager = ldk_info.channel_manager.unwrap().clone();
     let peer_manager = ldk_info.peer_manager.unwrap().clone();
@@ -144,18 +174,18 @@ pub fn get_node_info() -> LdkNodeInfo{
         .unwrap()
         .unwrap();
     let pubkey = hex_utils::to_compressed_pubkey(&pub_key_str).unwrap();
-    connect_peer_if_necessary(pubkey, peer_addr, peer_manager.clone()).await;
+    connect_peer_if_not_connected(pubkey, peer_addr, peer_manager.clone()).await;
     let res = _open_channel(pubkey, amount, is_public, channel_manager);
-    return   match res {
+    return match res {
         Ok(r) =>  {
             let peer_data_path = format!("{}/channel_peer_data", path);
             let info = format!("{}@{}", pub_key_str, peer_add_str);
             let _ = file_io::persist_channel_peer(Path::new(&peer_data_path), info.as_str());
-           r
+            r
         }
         Err(e) => {
-           let err = parse_api_error(e);
-           let error = format!("{}", err);
+            let err = parse_api_error(e);
+            let error = format!("{}", err);
             error
         }
     }
@@ -223,16 +253,6 @@ pub fn list_channels()->Vec<ChannelInfo>{
     channels
 }
 
-pub fn list_peers()-> Vec<String>{
-    let ldk_info = LDKINFO.read().unwrap().clone().unwrap();
-    let peer_manager = ldk_info.peer_manager.unwrap().clone();
-    let mut peers:Vec<String> = Vec::new();
-    for pub_key in peer_manager.get_peer_node_ids() {
-        peers.push(pub_key.to_string());
-    }
-    peers
-}
-
 pub fn close_channel(
     channel_id_str: String, peer_pubkey_str: String
 )
@@ -270,16 +290,13 @@ pub fn force_close_channel(
 
 
 #[tokio::main(flavor = "current_thread")]
-pub  async fn start_ldk_and_open_channel(
+pub  async fn start_ldk(
     username: String,
     password: String,
     host: String,
     node_network: Network,
-    pub_key:String,
-    amount:u64,
     path: String,
     port: u16,
-    port2:u16
 ) -> anyhow::Result<String>
 {
     let network = serialize::config_network(node_network);
@@ -539,7 +556,6 @@ pub  async fn start_ldk_and_open_channel(
     // Step 15: Handle LDK Events
     let channel_manager_event_listener = channel_manager.clone();
     let keys_manager_listener = keys_manager.clone();
-    // TODO: persist payment info to disk
     let inbound_payments: PaymentInfoStorage = Arc::new(Mutex::new(HashMap::new()));
     let outbound_payments: PaymentInfoStorage = Arc::new(Mutex::new(HashMap::new()));
     let inbound_pmts_for_events = inbound_payments.clone();
@@ -553,6 +569,7 @@ pub  async fn start_ldk_and_open_channel(
             &channel_manager_event_listener,
             &bitcoind_rpc,
             &network_graph_events,
+            network,
             &keys_manager_listener,
             &inbound_pmts_for_events,
             &outbound_pmts_for_events,
@@ -586,6 +603,7 @@ pub  async fn start_ldk_and_open_channel(
     let persister = Arc::new(FilesystemPersister::new(ldk_data_dir.clone()));
 
     //  Step 19: Background Processing
+    // Step 19: Background Processing
     let background_processor = BackgroundProcessor::start(
         persister,
         invoice_payer.clone(),
@@ -637,6 +655,9 @@ pub  async fn start_ldk_and_open_channel(
             }
         }
     });
+
+
+
     // Regularly broadcast our node_announcement. This is only required (or possible) if we have
     // some public channels, and is only useful if we have public listen address(es) to announce.
     // In a production environment, this should occur only after the announcement of new channels

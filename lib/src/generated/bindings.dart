@@ -5,12 +5,19 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
-
 import 'package:meta/meta.dart';
 import 'package:meta/meta.dart';
 import 'dart:ffi' as ffi;
 
 abstract class Rust {
+  Future<String> connectPeer({required String pubKeyStr, required String peerAddStr, dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kConnectPeerConstMeta;
+
+  Future<List<String>> listPeers({dynamic hint});
+
+  FlutterRustBridgeTaskConstMeta get kListPeersConstMeta;
+
   Future<LdkNodeInfo> getNodeInfo({dynamic hint});
 
   FlutterRustBridgeTaskConstMeta get kGetNodeInfoConstMeta;
@@ -28,10 +35,6 @@ abstract class Rust {
 
   FlutterRustBridgeTaskConstMeta get kListChannelsConstMeta;
 
-  Future<List<String>> listPeers({dynamic hint});
-
-  FlutterRustBridgeTaskConstMeta get kListPeersConstMeta;
-
   Future<void> closeChannel({required String channelIdStr, required String peerPubkeyStr, dynamic hint});
 
   FlutterRustBridgeTaskConstMeta get kCloseChannelConstMeta;
@@ -40,19 +43,16 @@ abstract class Rust {
 
   FlutterRustBridgeTaskConstMeta get kForceCloseChannelConstMeta;
 
-  Future<String> startLdkAndOpenChannel(
+  Future<String> startLdk(
       {required String username,
       required String password,
       required String host,
       required Network nodeNetwork,
-      required String pubKey,
-      required int amount,
       required String path,
       required int port,
-      required int port2,
       dynamic hint});
 
-  FlutterRustBridgeTaskConstMeta get kStartLdkAndOpenChannelConstMeta;
+  FlutterRustBridgeTaskConstMeta get kStartLdkConstMeta;
 }
 
 class ChannelInfo {
@@ -117,6 +117,34 @@ class RustImpl implements Rust {
   /// Only valid on web/WASM platforms.
   factory RustImpl.wasm(FutureOr<WasmModule> module) => RustImpl(module as ExternalLibrary);
   RustImpl.raw(this._platform);
+  Future<String> connectPeer({required String pubKeyStr, required String peerAddStr, dynamic hint}) =>
+      _platform.executeNormal(FlutterRustBridgeTask(
+        callFfi: (port_) => _platform.inner
+            .wire_connect_peer(port_, _platform.api2wire_String(pubKeyStr), _platform.api2wire_String(peerAddStr)),
+        parseSuccessData: _wire2api_String,
+        constMeta: kConnectPeerConstMeta,
+        argValues: [pubKeyStr, peerAddStr],
+        hint: hint,
+      ));
+
+  FlutterRustBridgeTaskConstMeta get kConnectPeerConstMeta => const FlutterRustBridgeTaskConstMeta(
+        debugName: "connect_peer",
+        argNames: ["pubKeyStr", "peerAddStr"],
+      );
+
+  Future<List<String>> listPeers({dynamic hint}) => _platform.executeNormal(FlutterRustBridgeTask(
+        callFfi: (port_) => _platform.inner.wire_list_peers(port_),
+        parseSuccessData: _wire2api_StringList,
+        constMeta: kListPeersConstMeta,
+        argValues: [],
+        hint: hint,
+      ));
+
+  FlutterRustBridgeTaskConstMeta get kListPeersConstMeta => const FlutterRustBridgeTaskConstMeta(
+        debugName: "list_peers",
+        argNames: [],
+      );
+
   Future<LdkNodeInfo> getNodeInfo({dynamic hint}) => _platform.executeNormal(FlutterRustBridgeTask(
         callFfi: (port_) => _platform.inner.wire_get_node_info(port_),
         parseSuccessData: _wire2api_ldk_node_info,
@@ -163,19 +191,6 @@ class RustImpl implements Rust {
         argNames: [],
       );
 
-  Future<List<String>> listPeers({dynamic hint}) => _platform.executeNormal(FlutterRustBridgeTask(
-        callFfi: (port_) => _platform.inner.wire_list_peers(port_),
-        parseSuccessData: _wire2api_StringList,
-        constMeta: kListPeersConstMeta,
-        argValues: [],
-        hint: hint,
-      ));
-
-  FlutterRustBridgeTaskConstMeta get kListPeersConstMeta => const FlutterRustBridgeTaskConstMeta(
-        debugName: "list_peers",
-        argNames: [],
-      );
-
   Future<void> closeChannel({required String channelIdStr, required String peerPubkeyStr, dynamic hint}) =>
       _platform.executeNormal(FlutterRustBridgeTask(
         callFfi: (port_) => _platform.inner.wire_close_channel(
@@ -206,38 +221,32 @@ class RustImpl implements Rust {
         argNames: ["channelIdStr", "peerPubkeyStr"],
       );
 
-  Future<String> startLdkAndOpenChannel(
+  Future<String> startLdk(
           {required String username,
           required String password,
           required String host,
           required Network nodeNetwork,
-          required String pubKey,
-          required int amount,
           required String path,
           required int port,
-          required int port2,
           dynamic hint}) =>
       _platform.executeNormal(FlutterRustBridgeTask(
-        callFfi: (port_) => _platform.inner.wire_start_ldk_and_open_channel(
+        callFfi: (port_) => _platform.inner.wire_start_ldk(
             port_,
             _platform.api2wire_String(username),
             _platform.api2wire_String(password),
             _platform.api2wire_String(host),
             api2wire_network(nodeNetwork),
-            _platform.api2wire_String(pubKey),
-            _platform.api2wire_u64(amount),
             _platform.api2wire_String(path),
-            api2wire_u16(port),
-            api2wire_u16(port2)),
+            api2wire_u16(port)),
         parseSuccessData: _wire2api_String,
-        constMeta: kStartLdkAndOpenChannelConstMeta,
-        argValues: [username, password, host, nodeNetwork, pubKey, amount, path, port, port2],
+        constMeta: kStartLdkConstMeta,
+        argValues: [username, password, host, nodeNetwork, path, port],
         hint: hint,
       ));
 
-  FlutterRustBridgeTaskConstMeta get kStartLdkAndOpenChannelConstMeta => const FlutterRustBridgeTaskConstMeta(
-        debugName: "start_ldk_and_open_channel",
-        argNames: ["username", "password", "host", "nodeNetwork", "pubKey", "amount", "path", "port", "port2"],
+  FlutterRustBridgeTaskConstMeta get kStartLdkConstMeta => const FlutterRustBridgeTaskConstMeta(
+        debugName: "start_ldk",
+        argNames: ["username", "password", "host", "nodeNetwork", "path", "port"],
       );
 
 // Section: wire2api
@@ -395,6 +404,36 @@ class RustWire implements FlutterRustBridgeWireBase {
       _lookup<ffi.NativeFunction<ffi.Void Function(DartPostCObjectFnType)>>('store_dart_post_cobject');
   late final _store_dart_post_cobject = _store_dart_post_cobjectPtr.asFunction<void Function(DartPostCObjectFnType)>();
 
+  void wire_connect_peer(
+    int port_,
+    ffi.Pointer<wire_uint_8_list> pub_key_str,
+    ffi.Pointer<wire_uint_8_list> peer_add_str,
+  ) {
+    return _wire_connect_peer(
+      port_,
+      pub_key_str,
+      peer_add_str,
+    );
+  }
+
+  late final _wire_connect_peerPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+              ffi.Int64, ffi.Pointer<wire_uint_8_list>, ffi.Pointer<wire_uint_8_list>)>>('wire_connect_peer');
+  late final _wire_connect_peer = _wire_connect_peerPtr
+      .asFunction<void Function(int, ffi.Pointer<wire_uint_8_list>, ffi.Pointer<wire_uint_8_list>)>();
+
+  void wire_list_peers(
+    int port_,
+  ) {
+    return _wire_list_peers(
+      port_,
+    );
+  }
+
+  late final _wire_list_peersPtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>('wire_list_peers');
+  late final _wire_list_peers = _wire_list_peersPtr.asFunction<void Function(int)>();
+
   void wire_get_node_info(
     int port_,
   ) {
@@ -440,17 +479,6 @@ class RustWire implements FlutterRustBridgeWireBase {
   late final _wire_list_channelsPtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>('wire_list_channels');
   late final _wire_list_channels = _wire_list_channelsPtr.asFunction<void Function(int)>();
 
-  void wire_list_peers(
-    int port_,
-  ) {
-    return _wire_list_peers(
-      port_,
-    );
-  }
-
-  late final _wire_list_peersPtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>('wire_list_peers');
-  late final _wire_list_peers = _wire_list_peersPtr.asFunction<void Function(int)>();
-
   void wire_close_channel(
     int port_,
     ffi.Pointer<wire_uint_8_list> channel_id_str,
@@ -489,48 +517,33 @@ class RustWire implements FlutterRustBridgeWireBase {
   late final _wire_force_close_channel = _wire_force_close_channelPtr
       .asFunction<void Function(int, ffi.Pointer<wire_uint_8_list>, ffi.Pointer<wire_uint_8_list>)>();
 
-  void wire_start_ldk_and_open_channel(
+  void wire_start_ldk(
     int port_,
     ffi.Pointer<wire_uint_8_list> username,
     ffi.Pointer<wire_uint_8_list> password,
     ffi.Pointer<wire_uint_8_list> host,
     int node_network,
-    ffi.Pointer<wire_uint_8_list> pub_key,
-    int amount,
     ffi.Pointer<wire_uint_8_list> path,
     int port,
-    int port2,
   ) {
-    return _wire_start_ldk_and_open_channel(
+    return _wire_start_ldk(
       port_,
       username,
       password,
       host,
       node_network,
-      pub_key,
-      amount,
       path,
       port,
-      port2,
     );
   }
 
-  late final _wire_start_ldk_and_open_channelPtr = _lookup<
+  late final _wire_start_ldkPtr = _lookup<
       ffi.NativeFunction<
-          ffi.Void Function(
-              ffi.Int64,
-              ffi.Pointer<wire_uint_8_list>,
-              ffi.Pointer<wire_uint_8_list>,
-              ffi.Pointer<wire_uint_8_list>,
-              ffi.Int32,
-              ffi.Pointer<wire_uint_8_list>,
-              ffi.Uint64,
-              ffi.Pointer<wire_uint_8_list>,
-              ffi.Uint16,
-              ffi.Uint16)>>('wire_start_ldk_and_open_channel');
-  late final _wire_start_ldk_and_open_channel = _wire_start_ldk_and_open_channelPtr.asFunction<
+          ffi.Void Function(ffi.Int64, ffi.Pointer<wire_uint_8_list>, ffi.Pointer<wire_uint_8_list>,
+              ffi.Pointer<wire_uint_8_list>, ffi.Int32, ffi.Pointer<wire_uint_8_list>, ffi.Uint16)>>('wire_start_ldk');
+  late final _wire_start_ldk = _wire_start_ldkPtr.asFunction<
       void Function(int, ffi.Pointer<wire_uint_8_list>, ffi.Pointer<wire_uint_8_list>, ffi.Pointer<wire_uint_8_list>,
-          int, ffi.Pointer<wire_uint_8_list>, int, ffi.Pointer<wire_uint_8_list>, int, int)>();
+          int, ffi.Pointer<wire_uint_8_list>, int)>();
 
   ffi.Pointer<wire_uint_8_list> new_uint_8_list_0(
     int len,
